@@ -23,6 +23,7 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | The path of your chosen route | [Valhalla](https://valhalla1.openstreetmap.de) by FOSSGIS | Speed limits, tolls, traffic lights, tunnels and lane arrows |
 | The area (about 110 km squares) around your route | [Overpass API](https://overpass-api.de) | Speed cameras, toll plazas, railway crossings and speed bumps |
 | The area you're looking at | [OpenFreeMap](https://openfreemap.org) | Map tiles |
+| The path of each route on offer, and the area you're looking at or driving through | Roadwise's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, accidents, roadworks and closures. Answers are shared between phones for two minutes and not kept; TomTom sees Roadwise's server, not your phone. |
 | A short map link you share to Roadwise (maps.app.goo.gl) | Google | Finding out where the link points |
 | Reports you choose to send (kind and position) and "still there?" answers | Roadwise's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |

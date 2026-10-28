@@ -3,6 +3,16 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.5.0 — 2026-10-29
+
+- **Live traffic** (from TomTom): arrival times count today's traffic, slow and stopped stretches
+  are coloured on the route, and each route choice shows how much traffic adds ("🚗 +5 min").
+- **Accidents, roadworks and closures** on the map (tap one for details), with a voice warning when
+  one is ahead on your route.
+- **Lane arrows fixed at busy junctions**: they could show the lanes of a junction just before the
+  turn, with the wrong number of lanes. Lanes that don't help (every lane, or none, marked) are no
+  longer shown.
+
 ## 0.4.0 — 2026-10-29
 
 First public release.
