@@ -121,7 +121,11 @@ map.on("load", () => {
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "dest", type: "circle", source: "dest", paint: { "circle-color": "#D93025", "circle-radius": 9, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+  // The destination: a pin standing on the spot, and the ring it sends out when it drops (hidden at rest).
+  map.addLayer({ id: "dest-ring", type: "circle", source: "dest", paint: { "circle-color": "#EA4335", "circle-radius": 0, "circle-opacity": 0, "circle-pitch-alignment": "map" } });
+  map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
+  map.addLayer({ id: "dest", type: "symbol", source: "dest",
+    layout: { "icon-image": "dest-pin", "icon-anchor": "bottom", "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM,
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "reports", type: "symbol", source: "reports",
@@ -144,6 +148,52 @@ map.on("click", "incidents", (e) => {
   if (inc) toast(`${inc.symbol} ${inc.text || inc.spoken}${inc.delay >= 60 ? ` · +${formatDuration(inc.delay)}` : ""}`);
 });
 
+/** The destination pin (as the app's ic_dest_pin): red, white rim and centre, 40px. */
+function destPinImage() {
+  const size = 80, g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
+  g.scale(size / 24, size / 24);
+  const pin = new Path2D("M12,1.9C8.07,1.9 4.9,5.07 4.9,9c0,5.3 7.1,13.1 7.1,13.1s7.1,-7.8 7.1,-13.1c0,-3.93 -3.17,-7.1 -7.1,-7.1z");
+  g.fillStyle = "#EA4335"; g.fill(pin);
+  g.strokeStyle = "#FFFFFF"; g.lineWidth = 1.4; g.lineJoin = "round"; g.stroke(pin);
+  g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(12, 9, 2.7, 0, 2 * Math.PI); g.fill();
+  return g.getImageData(0, 0, size, size);
+}
+
+/**
+ * The pin falls onto the place, settles, and sends out one soft ring where it lands, once the map
+ * has arrived. One-shot; instant with reduced motion.
+ */
+let pinDrop = 0;
+function dropPin() {
+  const run = ++pinDrop;
+  const rest = () => {
+    map.setLayoutProperty("dest", "icon-offset", [0, 0]);
+    map.setPaintProperty("dest", "icon-opacity", 1);
+    map.setPaintProperty("dest-ring", "circle-opacity", 0);
+  };
+  if (reducedMotion()) return rest();
+  const backOut = (t) => 1 + 2.6 * (t - 1) ** 3 + 1.6 * (t - 1) ** 2; // a small overshoot to settle
+  const start = performance.now();
+  const frame = (now) => {
+    if (run !== pinDrop) return;
+    // Frame times can be a hair earlier than performance.now() at the start: clamp to 0..1.
+    const t = Math.min(1, Math.max(0, (now - start) / 420));
+    map.setLayoutProperty("dest", "icon-offset", [0, -56 * (1 - backOut(t))]);
+    map.setPaintProperty("dest", "icon-opacity", Math.min(1, t * 4));
+    if (t < 1) return requestAnimationFrame(frame);
+    const ringStart = performance.now();
+    const ring = (now2) => {
+      if (run !== pinDrop) return;
+      const u = Math.min(1, Math.max(0, (now2 - ringStart) / 600)), e = 1 - (1 - u) ** 2;
+      map.setPaintProperty("dest-ring", "circle-radius", 4 + 24 * e);
+      map.setPaintProperty("dest-ring", "circle-opacity", 0.35 * (1 - e));
+      if (u < 1) requestAnimationFrame(ring); else rest();
+    };
+    requestAnimationFrame(ring);
+  };
+  requestAnimationFrame(frame);
+}
+
 /** A map image of [emoji] on a [color] disc with a white rim, added the first time; returns its name. */
 function badge(emoji, color) {
   const name = `badge:${emoji}:${color}`;
@@ -158,6 +208,70 @@ function badge(emoji, color) {
   g.fillText(emoji, c, c + ratio);
   map.addImage(name, g.getImageData(0, 0, size, size), { pixelRatio: ratio });
   return name;
+}
+
+// --- Night colours (as the Android app's MapTheme and RoadColors) ---
+
+const NIGHT = { background: "#1E2227", land: "#252A30", green: "#1F2B25", water: "#15233A", building: "#2E333A",
+  label: "#C9CED6", dim: "#4A5058", major: "#50565E", minor: "#3A3F46", casing: "#15181B" };
+const UNROADS = ["rail", "transit", "path", "pedestrian", "aeroway", "ferry", "cable", "pier"];
+const MAJOR = ["motorway", "trunk", "primary", "major"];
+/** The style's own day value of each paint property night changed, to put back in the morning. */
+const dayPaint = new Map();
+let night = false;
+
+/** Whether the sun is down at [lng, lat] now, to within a few minutes (MapTheme.isNight). */
+function isNight([lng, lat], now = new Date()) {
+  const start = Date.UTC(now.getUTCFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  const declination = rad(-23.44 * Math.cos((2 * Math.PI / 365) * (dayOfYear + 10)));
+  const cosHourAngle = -Math.tan(rad(lat)) * Math.tan(declination);
+  if (cosHourAngle <= -1) return false;
+  if (cosHourAngle >= 1) return true;
+  const halfDayHours = (Math.acos(cosHourAngle) * 180) / Math.PI / 15;
+  const hoursFromNoon = ((((now.getUTCHours() + now.getUTCMinutes() / 60 - (12 - lng / 15)) % 24) + 36) % 24) - 12;
+  return Math.abs(hoursFromNoon) > halfDayHours;
+}
+
+function updateTheme() {
+  if (!state.here || !map.getSource("me")) return;
+  const want = isNight(state.here);
+  if (want !== night) applyNight(want);
+}
+
+function applyNight(on) {
+  night = on;
+  document.documentElement.classList.toggle("night", on);
+  document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#2F6FED";
+  const paint = (id, prop, value) => {
+    const key = `${id}|${prop}`;
+    if (on) {
+      if (!dayPaint.has(key)) dayPaint.set(key, map.getPaintProperty(id, prop));
+      map.setPaintProperty(id, prop, value);
+    } else if (dayPaint.has(key)) {
+      map.setPaintProperty(id, prop, dayPaint.get(key));
+      dayPaint.delete(key);
+    }
+  };
+  for (const l of map.getStyle().layers) {
+    const layer = l["source-layer"], id = l.id;
+    if (l.type === "background") paint(id, "background-color", NIGHT.background);
+    if (l.source !== "openmaptiles") continue;
+    if (l.type === "fill" && layer !== "transportation") {
+      const c = layer === "water" ? NIGHT.water : layer === "building" ? NIGHT.building
+        : ["park", "wood", "grass", "wetland"].some((w) => id.includes(w)) ? NIGHT.green : NIGHT.land;
+      paint(id, "fill-color", c);
+      paint(id, "fill-outline-color", c);
+    } else if (l.type === "line" && layer === "waterway") paint(id, "line-color", NIGHT.water);
+    else if (l.type === "line" && layer === "park") paint(id, "line-color", NIGHT.dim);
+    else if (l.type === "line" && layer === "transportation") {
+      paint(id, "line-color", UNROADS.some((w) => id.includes(w)) ? NIGHT.dim : id.includes("casing") ? NIGHT.casing
+        : MAJOR.some((w) => id.includes(w)) ? NIGHT.major : NIGHT.minor);
+    } else if (l.type === "symbol") {
+      paint(id, "text-color", NIGHT.label);
+      paint(id, "text-halo-color", NIGHT.background);
+    }
+  }
 }
 
 // --- Location ---
@@ -186,6 +300,7 @@ function onLocation() {
     showNav(u);
   }
   map.getSource("me")?.setData(fc([pointFeature(shown)]));
+  updateTheme();
   if (state.following) {
     map.easeTo({ center: shown, bearing: nav && state.heading != null ? state.heading : map.getBearing(), pitch: nav ? 50 : 0,
       zoom: nav ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: 900 });
@@ -268,13 +383,37 @@ function showResults(places, near) {
 
 // --- Routes ---
 
+/** A picked place: show where it is first; routes come with Directions. */
 function goTo(place) {
   showResults([]);
   $("search").value = place.name;
   $("search").blur();
   $("clear").hidden = false;
+  clearRoute();
   state.destination = place;
-  planRoute(true);
+  drawRoutes(); // Just the destination pin, hidden until the map gets there.
+  ++pinDrop;
+  map.setPaintProperty("dest", "icon-opacity", 0);
+  $("placeName").textContent = place.name;
+  $("placeDetail").textContent = [place.detail, state.here && `${shortDistance(distance(state.here, place.at))} away`].filter(Boolean).join("  ·  ");
+  showCard($("placeCard"));
+  state.following = false;
+  map.easeTo({ center: place.at, zoom: Math.max(map.getZoom(), 15.5), pitch: 0, bearing: 0, duration: 700 });
+  setTimeout(dropPin, reducedMotion() ? 0 : 720); // Once the map has arrived.
+}
+$("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
+$("placeClose").onclick = () => $("clear").onclick();
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+function showCard(el) {
+  clearTimeout(el.hideTimer);
+  if (el.hidden) { el.hidden = false; void el.offsetHeight; } // Start from the hidden pose.
+  el.classList.add("in");
+}
+function hideCard(el) {
+  if (el.hidden) return;
+  el.classList.remove("in");
+  el.hideTimer = setTimeout(() => (el.hidden = true), reducedMotion() ? 0 : 160);
 }
 
 async function planRoute(fit) {
@@ -285,7 +424,8 @@ async function planRoute(fit) {
   if (!found.length) return toast("No driving route found");
   state.routes = found;
   selectRoute(0);
-  $("panel").hidden = false;
+  hideCard($("placeCard"));
+  showCard($("panel"));
   if (fit) {
     state.following = false;
     const b = new maplibregl.LngLatBounds();
@@ -354,7 +494,8 @@ function clearRoute() {
   state.destination = null;
   state.routes = [];
   drawRoutes();
-  $("panel").hidden = true;
+  hideCard($("panel"));
+  hideCard($("placeCard"));
 }
 
 // --- Navigation ---
