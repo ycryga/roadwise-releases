@@ -333,7 +333,7 @@ $("search").addEventListener("input", () => {
   const q = $("search").value.trim();
   $("clear").hidden = !q && !state.destination;
   clearTimeout(searchTimer);
-  if (q.length < 3) return q ? showResults([]) : showMenu();
+  if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : showMenu();
   searchTimer = setTimeout(() => search(q, false), 350);
 });
 $("search").addEventListener("focus", () => { if (!$("search").value && !state.picking) showMenu(); });
@@ -539,7 +539,23 @@ function startPicking(kind) {
   $("search").placeholder = kind === "origin" ? "Start from: search a place" : "Add a stop: search a place";
   $("clear").hidden = false;
   showResults([]);
+  // Picking where to start: going back to here comes first.
+  if (kind === "origin" && state.origin) {
+    const b = document.createElement("button");
+    b.className = "row";
+    b.innerHTML = `<span class="pin">${icon("locate")}</span><span class="what"><div class="name">Your location</div><div class="detail">Start from where you are now</div></span>`;
+    b.onmousedown = (e) => e.preventDefault(); // Keep the keyboard's blur from eating the tap.
+    b.onclick = startFromHere;
+    $("results").replaceChildren(b);
+  }
   $("search").focus();
+}
+
+/** Back to routing from where the phone is, after planning from another start. */
+function startFromHere() {
+  if (state.picking) stopPicking();
+  state.origin = null;
+  planRoute(true);
 }
 
 function stopPicking() {
@@ -580,7 +596,7 @@ function renderTrip() {
   const o = state.origin;
   el.replaceChildren(
     row("●", o ? `From ${o.name} · planning only` : "From your location", () => startPicking("origin"),
-      ...(o ? [button("close", "Start from your location", () => { state.origin = null; planRoute(true); })] : [])),
+      ...(o ? [button("locate", "Start from your location", startFromHere)] : [])),
     ...state.stops.map((p, i) => row(String(i + 1), p.name, null,
       ...(i > 0 ? [button("up", "Move stop earlier", () => moveStop(i, i - 1))] : []),
       ...(i < state.stops.length - 1 ? [button("down", "Move stop later", () => moveStop(i, i + 1))] : []),
