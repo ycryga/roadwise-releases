@@ -3,6 +3,11 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.10.2 — 2026-10-29
+
+- **Easier to read route details**: the route card and route choices say it in words, like
+  "No tolls · 2 lights · traffic +7 min" and "via Jalan Istana", instead of small emoji.
+
 ## 0.10.1 — 2026-10-29
 
 - **Clearer reports**: reports and incidents on the map, and the report buttons, use proper icons
