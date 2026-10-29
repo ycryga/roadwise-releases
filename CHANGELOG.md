@@ -3,6 +3,12 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.10.3 — 2026-10-29
+
+- **Fixed**: after planning a trip from another place, there was no clear way back to your own
+  location. Tapping "From …" now offers **Your location** first, and the button at the end of
+  that row shows the my-location icon.
+
 ## 0.10.2 — 2026-10-29
 
 - **Easier to read route details**: the route card and route choices say it in words, like
