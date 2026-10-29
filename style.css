@@ -87,6 +87,12 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .placeActions { display: flex; gap: 8px; margin-top: 14px; }
 .icon.big { width: 56px; height: 52px; border-radius: 26px; }
 #panel { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 14px 16px; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#trip { flex-basis: 100%; display: flex; flex-direction: column; }
+.tripRow { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+.tripRow .n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--pin-bg); color: var(--blue); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.tripRow .what { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--text); text-align: left; font-size: 15px; padding: 12px 0; }
+.tripRow .btn { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--muted); display: grid; place-items: center; }
+.tripLink { border: 0; background: none; color: var(--blue); font-weight: 600; text-align: left; padding: 12px 0 12px 36px; min-height: 48px; }
 #routes { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; }
 .route { display: flex; justify-content: space-between; gap: 8px; border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; background: none; text-align: left; color: var(--text); }
 .route.on { border-color: var(--blue); background: var(--selected); }

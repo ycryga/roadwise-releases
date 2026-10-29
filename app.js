@@ -16,6 +16,9 @@ const INCIDENTS_REFRESH_MS = 3 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
+const MAX_STOPS = 8;
+const STOP_REACHED_METERS = 60;
+const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
 // Navigation, as the Android Navigator.
 const ADVANCE_METERS = 25, ARRIVE_METERS = 30, NEAR_METERS = 60, FAR_METERS = 400;
 const OFF_ROUTE_METERS = 50, OFF_ROUTE_UPDATES = 3, THEN_SHOWN_METERS = 400;
@@ -41,6 +44,7 @@ const icon = (name) => `<svg class="ico" aria-hidden="true"><use href="#i-${name
 const state = {
   here: null, heading: null, speed: 0, accuracy: 50,
   destination: null, routes: [], selected: 0,
+  stops: [], origin: null, picking: null, // stops in visiting order; a start other than here (planning only); "stop" | "origin" while searching for one
   nav: null, following: true, wakeLock: null,
   reports: [], incidents: [], incidentsAt: 0, incidentsArea: null,
   traffic: localStorage.getItem("traffic") === "1",
@@ -116,12 +120,16 @@ const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "P
 map.on("load", () => {
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
-  for (const s of ["alts", "route", "slow", "dest", "me", "reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty });
+  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": "#9AA0A6", "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
   // The destination: a pin standing on the spot, and the ring it sends out when it drops (hidden at rest).
+  map.addLayer({ id: "stops", type: "circle", source: "stops", paint: { "circle-color": "#fff", "circle-radius": 11, "circle-stroke-color": "#1A4DB8", "circle-stroke-width": 3 } });
+  map.addLayer({ id: "stop-numbers", type: "symbol", source: "stops",
+    layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true },
+    paint: { "text-color": "#1A4DB8" } });
   map.addLayer({ id: "dest-ring", type: "circle", source: "dest", paint: { "circle-color": "#EA4335", "circle-radius": 0, "circle-opacity": 0, "circle-pitch-alignment": "map" } });
   map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
   map.addLayer({ id: "dest", type: "symbol", source: "dest",
@@ -139,6 +147,7 @@ map.on("load", () => {
 map.on("moveend", () => refreshIncidents());
 map.on("dragstart", () => { state.following = false; });
 map.on("click", "alts", (e) => selectRoute(e.features[0].properties.index));
+map.on("click", "stops", (e) => { const stop = state.stops[e.features[0].properties.i]; if (stop) removeStop(stop); });
 map.on("click", "reports", (e) => {
   const r = state.reports.find((x) => x.id === e.features[0].properties.id);
   if (r) toast(`${r.title} · reported ${minutesAgo(r.created)}${r.confirmed > r.created ? ` · still there ${minutesAgo(r.confirmed)}` : ""}`);
@@ -294,6 +303,10 @@ function startLocation() {
 function onLocation() {
   const nav = state.nav;
   let shown = state.here;
+  if (nav && state.stops.length && distance(state.here, state.stops[0].at) < STOP_REACHED_METERS) {
+    say(`Arriving at ${state.stops.shift().name}`);
+    drawRoutes();
+  }
   if (nav) {
     const u = navUpdate(nav, state.here);
     if (u.snapped) shown = u.snapped;
@@ -323,7 +336,7 @@ $("search").addEventListener("input", () => {
   if (q.length < 3) return q ? showResults([]) : showMenu();
   searchTimer = setTimeout(() => search(q, false), 350);
 });
-$("search").addEventListener("focus", () => { if (!$("search").value) showMenu(); });
+$("search").addEventListener("focus", () => { if (!$("search").value && !state.picking) showMenu(); });
 $("search").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   clearTimeout(searchTimer);
@@ -331,6 +344,7 @@ $("search").addEventListener("keydown", (e) => {
   if (q) { $("search").blur(); search(q, true); }
 });
 $("clear").onclick = () => {
+  if (state.picking) return stopPicking();
   $("search").value = "";
   $("clear").hidden = true;
   showResults([]);
@@ -376,7 +390,7 @@ function showResults(places, near) {
     row.querySelector(".name").textContent = p.name;
     row.querySelector(".detail").textContent = p.detail;
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";
-    row.onclick = () => goTo(p);
+    row.onclick = () => choose(p);
     return row;
   }));
 }
@@ -420,10 +434,12 @@ async function planRoute(fit) {
   if (!state.here) { startLocation(); return toast("Finding your location…"); }
   const to = state.destination?.at;
   if (!to) return;
-  const found = await withProgress(() => fetchRoutes(state.here, to, true));
+  const from = state.origin?.at ?? state.here;
+  const found = await withProgress(() => fetchRoutes([from, ...state.stops.map((p) => p.at), to], true));
   if (!found.length) return toast("No driving route found");
   state.routes = found;
   selectRoute(0);
+  renderTrip();
   hideCard($("placeCard"));
   showCard($("panel"));
   if (fit) {
@@ -434,9 +450,10 @@ async function planRoute(fit) {
   }
 }
 
-/** OSRM's routes, then TomTom's live time for each (through Roadwise's server). */
-async function fetchRoutes(from, to, alternatives) {
-  const url = `${OSRM}${from.join(",")};${to.join(",")}?overview=full&geometries=geojson&steps=true${alternatives ? "&alternatives=3" : ""}`;
+/** OSRM's routes through [points] (start, stops, destination), then TomTom's live time for each. Choices only come between two points. */
+async function fetchRoutes(points, alternatives) {
+  const alt = alternatives && points.length === 2 ? "&alternatives=3" : "";
+  const url = `${OSRM}${points.map((p) => p.join(",")).join(";")}?overview=full&geometries=geojson&steps=true${alt}`;
   const json = await fetch(url).then((r) => r.json()).catch(() => null);
   if (json?.code !== "Ok") return [];
   const routes = json.routes.map(parseRoute);
@@ -457,9 +474,11 @@ async function fetchRoutes(from, to, alternatives) {
 
 function parseRoute(r) {
   const steps = [];
-  for (const leg of r.legs) for (const s of leg.steps) {
+  r.legs.forEach((leg, l) => leg.steps.forEach((s) => {
+    // Stops in the middle aren't a "depart" or "arrive" for the driver.
+    if ((s.maneuver.type === "depart" && l > 0) || (s.maneuver.type === "arrive" && l < r.legs.length - 1)) return;
     steps.push({ type: s.maneuver.type, modifier: s.maneuver.modifier ?? null, road: s.name || "", exit: s.maneuver.exit ?? null, at: s.maneuver.location });
-  }
+  }));
   const via = [...new Set(r.legs.flatMap((l) => (l.summary || "").split(", ").filter(Boolean)))].slice(0, 2).join(", ");
   return { points: r.geometry.coordinates, meters: r.distance, seconds: r.duration, delay: 0, slow: [], steps, via };
 }
@@ -488,14 +507,125 @@ function drawRoutes() {
   map.getSource("route")?.setData(r ? lineFeature(r.points) : empty);
   map.getSource("slow")?.setData(fc((r?.slow ?? []).map((s) => lineFeature(s.points, { color: s.color }))));
   map.getSource("dest")?.setData(state.destination ? fc([pointFeature(state.destination.at)]) : empty);
+  map.getSource("stops")?.setData(fc(state.stops.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
 }
 
 function clearRoute() {
   state.destination = null;
+  state.stops = [];
+  state.origin = null;
+  renderTrip();
   state.routes = [];
   drawRoutes();
   hideCard($("panel"));
   hideCard($("placeCard"));
+}
+
+// --- The trip: where it starts, and its stops in order ---
+
+function choose(place) {
+  const kind = state.picking;
+  if (!kind) return goTo(place);
+  stopPicking();
+  if (kind === "origin") state.origin = place;
+  else if (state.stops.length >= MAX_STOPS) return toast(`Up to ${MAX_STOPS} stops`);
+  else state.stops.push(place);
+  planRoute(kind === "origin");
+}
+
+function startPicking(kind) {
+  state.picking = kind;
+  $("search").value = "";
+  $("search").placeholder = kind === "origin" ? "Start from: search a place" : "Add a stop: search a place";
+  $("clear").hidden = false;
+  showResults([]);
+  $("search").focus();
+}
+
+function stopPicking() {
+  state.picking = null;
+  $("search").placeholder = "Where to?";
+  $("search").value = state.destination?.name ?? "";
+  $("clear").hidden = !state.destination;
+  showResults([]);
+  $("search").blur();
+}
+
+function removeStop(stop) {
+  state.stops = state.stops.filter((p) => p !== stop);
+  state.nav ? reroute() : planRoute(false);
+}
+
+function moveStop(from, to) {
+  state.stops.splice(to, 0, state.stops.splice(from, 1)[0]);
+  planRoute(false);
+}
+
+/** The trip on the route card before starting: From (tap to plan from elsewhere), stops with earlier / later / remove, Add stop, Best order. */
+function renderTrip() {
+  const el = $("trip");
+  $("go").hidden = !!state.origin;
+  if (state.nav || !state.destination) return el.replaceChildren();
+  const button = (name, label, onclick) => Object.assign(document.createElement("button"), { className: "btn", ariaLabel: label, innerHTML: icon(name), onclick });
+  const row = (lead, text, onclick, ...buttons) => {
+    const r = document.createElement("div");
+    r.className = "tripRow";
+    const n = Object.assign(document.createElement("span"), { className: "n", textContent: lead });
+    const what = Object.assign(document.createElement(onclick ? "button" : "span"), { className: "what", textContent: text });
+    if (onclick) what.onclick = onclick;
+    r.append(n, what, ...buttons);
+    return r;
+  };
+  const link = (text, onclick) => Object.assign(document.createElement("button"), { className: "tripLink", textContent: text, onclick });
+  const o = state.origin;
+  el.replaceChildren(
+    row("●", o ? `From ${o.name} · planning only` : "From your location", () => startPicking("origin"),
+      ...(o ? [button("close", "Start from your location", () => { state.origin = null; planRoute(true); })] : [])),
+    ...state.stops.map((p, i) => row(String(i + 1), p.name, null,
+      ...(i > 0 ? [button("up", "Move stop earlier", () => moveStop(i, i - 1))] : []),
+      ...(i < state.stops.length - 1 ? [button("down", "Move stop later", () => moveStop(i, i + 1))] : []),
+      button("close", "Remove stop", () => removeStop(p)))),
+    ...(state.stops.length < MAX_STOPS ? [link("+ Add stop", () => startPicking("stop"))] : []),
+    ...(state.stops.length >= 2 ? [link("Best order", bestOrder)] : []),
+  );
+}
+
+/**
+ * The quickest order to visit the stops: [seconds][i][j] drives from point i to j, point 0 is the
+ * start and the last the destination. Every order is tried (at most 8! = 40,320); null legs never win.
+ */
+function bestOrderOf(seconds) {
+  const end = seconds.length - 1;
+  let best = [...Array(end - 1).keys()].map((k) => k + 1), bestTime = Infinity;
+  const visit = (order, left, time) => {
+    if (time >= bestTime) return;
+    const from = order.at(-1) ?? 0;
+    if (!left.length) {
+      const last = seconds[from][end];
+      if (last != null && time + last < bestTime) { bestTime = time + last; best = [...order]; }
+      return;
+    }
+    for (const next of left) {
+      const leg = seconds[from][next];
+      if (leg == null) continue;
+      visit([...order, next], left.filter((k) => k !== next), time + leg);
+    }
+  };
+  visit([], best, 0);
+  return best;
+}
+
+async function bestOrder() {
+  const from = state.origin?.at ?? state.here, to = state.destination?.at;
+  if (!from || !to) return;
+  const points = [from, ...state.stops.map((p) => p.at), to];
+  const json = await withProgress(() => fetch(OSRM_TABLE + points.map((p) => p.join(",")).join(";")).then((r) => r.json()).catch(() => null));
+  if (json?.code !== "Ok") return toast("Couldn't work out the best order. Check your connection.");
+  const order = bestOrderOf(json.durations).map((i) => state.stops[i - 1]);
+  if (order.every((p, i) => p === state.stops[i])) return toast("Already in the best order");
+  state.stops = order;
+  planRoute(false);
+  toast("Stops reordered, quickest first");
 }
 
 // --- Navigation ---
@@ -503,6 +633,7 @@ function clearRoute() {
 $("go").onclick = () => (state.nav ? stopNavigation() : startNavigation());
 
 function startNavigation() {
+  if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
   if (!r) return;
   state.nav = { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, rerouting: false,
@@ -516,6 +647,7 @@ function startNavigation() {
   $("go").setAttribute("aria-label", "Stop navigation");
   $("go").classList.add("stop");
   drawRoutes();
+  renderTrip();
   keepAwake(true);
   say(instructionFor(r.steps[0]));
   onLocation();
@@ -533,6 +665,7 @@ function stopNavigation() {
   $("go").classList.remove("stop");
   map.easeTo({ pitch: 0, bearing: 0 });
   drawRoutes();
+  renderTrip();
 }
 
 function cumulative(points) {
@@ -602,7 +735,7 @@ async function reroute() {
   const nav = state.nav;
   nav.rerouting = true;
   say("Rerouting");
-  const [r] = await fetchRoutes(state.here, state.destination.at, false);
+  const [r] = await fetchRoutes([state.here, ...state.stops.map((p) => p.at), state.destination.at], false);
   if (state.nav !== nav) return;
   nav.rerouting = false;
   if (!r) return;

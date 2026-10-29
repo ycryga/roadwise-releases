@@ -3,6 +3,16 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.10.0 — 2026-10-29
+
+- **Several stops**: add up to 8 stops on the way (📍+, a place on the map, or a road you tap).
+  The route card lists them in order, numbered like their dots on the map; move each one earlier
+  or later, or remove it. While driving, Roadwise tells you as you reach each stop.
+- **Best order**: one tap puts your stops in the quickest order.
+- **Plan from somewhere else**: tap "From your location" on the route card to start the trip from
+  another place, and see the route and arrival time from there. Tap ✕ to go back to your location.
+- Same in the browser version.
+
 ## 0.9.0 — 2026-10-29
 
 - **See the place before the route**: picking a search result, a recent place, a place on the map
