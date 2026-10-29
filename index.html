@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2F6FED">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Roadwise">
@@ -30,7 +30,7 @@
       <div id="arrow"></div>
       <div>
         <div id="bannerDistance"></div>
-        <div id="bannerText"></div>
+        <div id="bannerText" aria-live="polite"></div>
       </div>
       <div id="then" hidden></div>
     </div>
@@ -57,7 +57,7 @@
     <button id="sheetClose" class="plain">Cancel</button>
   </div>
 
-  <div id="toast" hidden></div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
 
   <div id="install" class="card" hidden>
     <p>For the best drive, <b>add Roadwise to your home screen</b> and keep it open on screen while
