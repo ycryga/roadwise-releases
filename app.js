@@ -36,6 +36,8 @@ const REPORT_TYPES = [
 ].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, icon, short]) => ({ key, title, icon, short })) }));
 
 const $ = (id) => document.getElementById(id);
+/** An icon from the sprite in index.html, as markup. */
+const icon = (name) => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const state = {
   here: null, heading: null, speed: 0, accuracy: 50,
   destination: null, routes: [], selected: 0,
@@ -255,7 +257,7 @@ function showResults(places, near) {
   list.replaceChildren(...places.map((p) => {
     const row = document.createElement("button");
     row.className = "row";
-    row.innerHTML = `<span class="pin">📍</span><span class="what"><div class="name"></div><div class="detail"></div></span><span class="far"></span>`;
+    row.innerHTML = `<span class="pin">${icon("pin")}</span><span class="what"><div class="name"></div><div class="detail"></div></span><span class="far"></span>`;
     row.querySelector(".name").textContent = p.name;
     row.querySelector(".detail").textContent = p.detail;
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";
@@ -369,7 +371,8 @@ function startNavigation() {
   $("banner").hidden = false;
   $("routes").hidden = true;
   $("navInfo").hidden = false;
-  $("go").textContent = "■";
+  $("go").innerHTML = `${icon("stop")}`;
+  $("go").setAttribute("aria-label", "Stop navigation");
   $("go").classList.add("stop");
   drawRoutes();
   keepAwake(true);
@@ -384,7 +387,8 @@ function stopNavigation() {
   $("banner").hidden = true;
   $("routes").hidden = false;
   $("navInfo").hidden = true;
-  $("go").textContent = "▶ Start";
+  $("go").innerHTML = `${icon("navigation")} Start`;
+  $("go").removeAttribute("aria-label");
   $("go").classList.remove("stop");
   map.easeTo({ pitch: 0, bearing: 0 });
   drawRoutes();
@@ -646,7 +650,7 @@ function showMenu() {
     const b = document.createElement("button");
     b.className = "row";
     b.innerHTML = `<span class="pin"></span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
-    b.querySelector(".pin").textContent = icon;
+    b.querySelector(".pin").innerHTML = icon;
     b.querySelector(".name").textContent = title;
     b.querySelector(".detail").textContent = detail;
     b.onmousedown = (e) => e.preventDefault(); // Keep the keyboard's blur from eating the tap.
@@ -654,8 +658,8 @@ function showMenu() {
     return b;
   };
   $("results").replaceChildren(
-    row("☕", "Support Roadwise", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
-    row("💡", "Request a feature", "What would make Roadwise better for you?", requestFeature),
+    row(icon("coffee"), "Support Roadwise", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
+    row(icon("lightbulb"), "Request a feature", "What would make Roadwise better for you?", requestFeature),
   );
 }
 
@@ -676,7 +680,7 @@ function showSupport() {
   const links = [["Ko-fi", donations?.kofi_url], ["Buy Me a Coffee", donations?.bmac_url]].filter(([, url]) => url).map(([label, url]) =>
     Object.assign(document.createElement("a"), { className: "primary payLink", href: url, target: "_blank", rel: "noopener", textContent: label }));
   if (links.length) text.textContent += " Or give by card:";
-  showSheet("☕ Support Roadwise", text, ...links, qr);
+  showSheet("Support Roadwise", text, ...links, qr);
 }
 
 function requestFeature() {
@@ -689,13 +693,13 @@ function requestFeature() {
     try {
       await supabase("POST", "feature_requests", { text, source: "web" });
       $("sheet").hidden = true;
-      toast("Thanks! 💡 Request sent");
+      toast("Thanks! Request sent");
     } catch (e) {
       send.disabled = false;
       toast(`Couldn't send it: ${e.message}`);
     }
   };
-  showSheet("💡 Request a feature", box, send);
+  showSheet("Request a feature", box, send);
   box.focus();
 }
 
