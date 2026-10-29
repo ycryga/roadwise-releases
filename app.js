@@ -19,6 +19,7 @@ const SAME_PLACE_METERS = 60;
 // Navigation, as the Android Navigator.
 const ADVANCE_METERS = 25, ARRIVE_METERS = 30, NEAR_METERS = 60, FAR_METERS = 400;
 const OFF_ROUTE_METERS = 50, OFF_ROUTE_UPDATES = 3, THEN_SHOWN_METERS = 400;
+const NEAR_END_METERS = 100, PARKING_SPEED = 3; // m/s, about 11 km/h
 
 const REPORT_TYPES = [
   { key: "police", label: "Police", color: "#2F6FED", icon: "👮", short: "Police", subtypes: [
@@ -405,7 +406,10 @@ function navUpdate(nav, here) {
     dist = distance(here, step.at);
   }
   const text = instructionFor(step);
-  const arrived = step.type === "arrive" && dist < ARRIVE_METERS;
+  // Near the end, slowing down or stopped counts too: the route ends on the road, the driver may
+  // park somewhere (a car park, a basement) it never comes within ARRIVE_METERS of.
+  const nearEnd = Math.min(distance(here, nav.route.points.at(-1)), state.destination ? distance(here, state.destination.at) : Infinity);
+  const arrived = (step.type === "arrive" && dist < ARRIVE_METERS) || (nearEnd < NEAR_END_METERS && state.speed < PARKING_SPEED);
   let speak = null;
   if (arrived) { if (!nav.near) speak = "You have arrived"; nav.near = true; }
   else if (dist < NEAR_METERS && !nav.near) { speak = text; nav.near = nav.far = true; }
@@ -413,7 +417,8 @@ function navUpdate(nav, here) {
 
   const s = snap(here, nav.route.points);
   const wrongWay = state.heading != null && state.speed > 4 && s && angleBetween(state.heading, s.bearing) > 70;
-  const off = !s || s.meters > Math.max(OFF_ROUTE_METERS, state.accuracy * 1.5) || wrongWay;
+  // No rerouting while looking for a spot to park.
+  const off = (!s || s.meters > Math.max(OFF_ROUTE_METERS, state.accuracy * 1.5) || wrongWay) && nearEnd >= NEAR_END_METERS;
   nav.off = off ? nav.off + 1 : 0;
   const after = steps.slice(nav.stepIndex + 1).find((x) => x.type === "arrive" || !instructionFor(x).startsWith("Continue straight"));
   const gap = after ? distance(step.at, after.at) : 0;
