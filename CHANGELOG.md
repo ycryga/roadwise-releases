@@ -3,6 +3,12 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.7.1 — 2026-10-29
+
+- **Arriving in a car park works**: stopping within about 100 m of where you're going now counts as
+  arrived, so navigation ends there. Before, a car park or basement away from the road could keep
+  it saying "Rerouting". No more rerouting while you look for a spot to park.
+
 ## 0.7.0 — 2026-10-29
 
 - **Roadwise in your browser**: [ycryga.github.io/roadwise-releases](https://ycryga.github.io/roadwise-releases/)
