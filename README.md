@@ -3,7 +3,17 @@
 A free navigation app for Android, built on OpenStreetMap. No Google services, no accounts, no ads.
 Made in Malaysia.
 
-**[⬇️ Download the latest APK](https://github.com/ycryga/roadwise-releases/releases/latest)**
+**[⬇️ Download the latest APK](https://github.com/ycryga/roadwise-releases/releases/latest)** ·
+**[🌐 Use it in your browser](https://ycryga.github.io/roadwise-releases/)** (iPhone too, nothing to install)
+
+## In the browser
+
+Open **[ycryga.github.io/roadwise-releases](https://ycryga.github.io/roadwise-releases/)** and add it
+to your home screen (Chrome: ⋮ → Add to Home screen; Safari: Share → Add to Home Screen). It has
+search, route choices with live traffic, voice directions, drivers' reports and the traffic map.
+Keep it open on screen while driving: browsers stop directions when the screen locks. The Android
+app below keeps going with the screen off and has everything else (tolls, speed cameras, lanes,
+offline routing).
 
 ## Install
 

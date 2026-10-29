@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Roadwise</title>
+  <meta name="description" content="Free driving directions with live traffic and drivers' reports.">
+  <meta name="theme-color" content="#2F6FED">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Roadwise">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="top">
+    <div id="searchBox" class="card">
+      <span class="lead">🔍</span>
+      <input id="search" type="search" placeholder="Where to?" autocomplete="off" enterkeyhint="search">
+      <button id="clear" class="icon" aria-label="Clear" hidden>✕</button>
+      <div id="progress" hidden></div>
+      <div id="results"></div>
+    </div>
+    <div id="banner" class="card" hidden>
+      <div id="arrow"></div>
+      <div>
+        <div id="bannerDistance"></div>
+        <div id="bannerText"></div>
+      </div>
+      <div id="then" hidden></div>
+    </div>
+  </div>
+
+  <div id="side">
+    <button id="trafficButton" class="fab" aria-label="Traffic map">🚦</button>
+    <button id="locate" class="fab" aria-label="Show my location">◎</button>
+  </div>
+  <button id="reportButton" class="fab" aria-label="Report">⚠️</button>
+
+  <div id="panel" class="card" hidden>
+    <div id="routes"></div>
+    <div id="navInfo" hidden>
+      <div id="navEta"></div>
+      <div id="navLeft"></div>
+    </div>
+    <button id="go" class="primary">▶ Start</button>
+  </div>
+
+  <div id="sheet" class="card" hidden>
+    <div id="sheetTitle"></div>
+    <div id="tiles"></div>
+    <button id="sheetClose" class="plain">Cancel</button>
+  </div>
+
+  <div id="toast" hidden></div>
+
+  <div id="install" class="card" hidden>
+    <p>For the best drive, <b>add Roadwise to your home screen</b> and keep it open on screen while
+      navigating (directions stop when the screen locks). On Android, the
+      <a href="https://github.com/ycryga/roadwise-releases/releases/latest">full app</a> keeps going
+      with the screen off.</p>
+    <button id="installOk" class="plain">Got it</button>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
