@@ -3,6 +3,13 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.8.1 — 2026-10-29
+
+- **Fixed**: in 0.8.0 the icons next to recent places were invisible in daytime.
+- **Clearer buttons**: the traffic, add-stop, parking, save and start buttons, and the list under
+  the search box, use proper icons instead of emoji, so they look the same on every phone and
+  dim properly at night. Same in the browser version.
+
 ## 0.8.0 — 2026-10-29
 
 - **New icon**: the arrow on its route, filling the home-screen icon shape instead of sitting small
