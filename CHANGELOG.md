@@ -3,6 +3,17 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.8.0 — 2026-10-29
+
+- **New icon**: the arrow on its route, filling the home-screen icon shape instead of sitting small
+  on a white tile. Works with Android 13+ themed icons. The browser version has it too.
+- **Easier on the eyes at night**: the search box, lists, route card and buttons now go dark with
+  the map after sunset and in tunnels, instead of staying bright white.
+- **Easier to tap**: the rows under the search box (Support, Request a feature, Share stop times,
+  About…) are full-size and readable, and the route card's stop, parking and save buttons are bigger.
+- **Browser version**: clearer keyboard focus, less motion when your phone asks for it, and
+  screen readers announce turns and messages.
+
 ## 0.7.1 — 2026-10-29
 
 - **Arriving in a car park works**: stopping within about 100 m of where you're going now counts as
