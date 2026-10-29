@@ -15,7 +15,7 @@ What's already out is in the [changelog](CHANGELOG.md).
 
 - **Roadwise's own routing server**, so routes don't depend on free public servers when many
   people drive with Roadwise at once.
-- **More in the browser version**: Home and Work, speed cameras, tolls, speed limits and night colours.
+- **More in the browser version**: Home and Work, speed cameras, tolls and speed limits.
 - **More accurate arrival times**, using how long drives really take.
 
 ## 💭 Ideas for later

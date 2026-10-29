@@ -3,6 +3,18 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.9.0 — 2026-10-29
+
+- **See the place before the route**: picking a search result, a recent place, a place on the map
+  or a shared location now shows where it is first, with its address and distance. Tap
+  **Directions** for routes, the star to save it, or ✕ to close. Home and Work still go straight
+  to directions.
+- **A real map pin**: the destination is a red pin instead of a dot, and it drops onto the place
+  when you pick it, so you see straight away where it is.
+- **Smoother cards**: the place and route cards slide up gently instead of popping in, and get out
+  of the way quickly. Turned off when your phone is set to remove animations.
+- **Browser version**: the same place card, and night colours for the map and panels after sunset.
+
 ## 0.8.1 — 2026-10-29
 
 - **Fixed**: in 0.8.0 the icons next to recent places were invisible in daytime.
