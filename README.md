@@ -1,55 +1,88 @@
-# Roadwise
+<p align="center">
+  <img src="icon.png" width="96" alt="Roadwise icon">
+</p>
 
-A free navigation app for Android, built on OpenStreetMap. No Google services, no accounts, no ads.
-Made in Malaysia.
+<h1 align="center">Roadwise</h1>
 
-**[⬇️ Download the latest APK](https://github.com/ycryga/roadwise-releases/releases/latest)** ·
-**[🌐 Use it in your browser](https://ycryga.github.io/roadwise-releases/)** (iPhone too, nothing to install) ·
-**[🗺️ What's coming](ROADMAP.md)**
+<p align="center">
+  <b>Free driving directions for Malaysia, with live traffic and reports from other drivers.</b><br>
+  No ads, no accounts, no Google services. Built on OpenStreetMap.
+</p>
 
-## In the browser
+<p align="center">
+  <a href="https://github.com/ycryga/roadwise-releases/releases/latest"><b>⬇️ Download for Android</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://ycryga.github.io/roadwise-releases/"><b>🌐 Open in your browser</b></a> (iPhone too)
+  &nbsp;·&nbsp;
+  <a href="ROADMAP.md">🗺️ What's coming</a>
+</p>
 
-Open **[ycryga.github.io/roadwise-releases](https://ycryga.github.io/roadwise-releases/)** and add it
-to your home screen (Chrome: ⋮ → Add to Home screen; Safari: Share → Add to Home Screen). It has
-search, route choices with live traffic, voice directions, drivers' reports and the traffic map.
-Keep it open on screen while driving: browsers stop directions when the screen locks. The Android
-app below keeps going with the screen off and has everything else (tolls, speed cameras, lanes,
-offline routing).
+<p align="center">
+  <img src="screenshots/banner.jpg" alt="Roadwise: turn-by-turn directions at night, a place card for KLCC, a trip with two stops, and search results" width="100%">
+</p>
 
-## Install
+## What it does
 
-1. Download `roadwise-vX.Y.Z.apk` from the [latest release](https://github.com/ycryga/roadwise-releases/releases/latest)
-   on your Android phone (Android 8 or newer).
+**Getting there**
+- Turn-by-turn voice directions with lane arrows, and up to three routes to choose from
+- Arrival times that count today's traffic, with slow and stopped stretches coloured on the route
+- Several stops on the way, in any order, or let **Best order** pick the quickest
+- Toll prices for each route, and which choice is toll-free when there is one
+- Plan a trip from anywhere, not just where you are now
+
+**On the road**
+- Your speed against the limit, flashing red when you go over
+- Warnings for speed cameras, toll plazas, railway crossings and speed bumps
+- Reports from other drivers: police, accidents, traffic, hazards, closed roads
+- Keeps directing you with the phone locked or folded (Galaxy Flip cover screen too)
+- Dark map and panels after sunset and in tunnels
+
+**Finding places**
+- Search in English or Malay: "stesen minyak", "makan", "surau", "parking"
+- Paste a link or share a location from WhatsApp or Google Maps
+- Petrol, food and toilets along your route, each showing how much time it adds
+- Routing maps you can download, so directions work without signal
+
+## Install on Android
+
+1. On your Android phone (Android 8 or newer), download `roadwise-vX.Y.Z.apk` from the
+   **[latest release](https://github.com/ycryga/roadwise-releases/releases/latest)**.
 2. Open it. If Android asks, allow your browser to install apps.
-3. Open Roadwise and allow location. To keep directions coming with the screen off, allow
-   notifications too.
+3. Open Roadwise and allow location. Allow notifications too, to keep directions coming with the
+   screen off.
 
 Updates install over the old version and keep your saved places. Only install Roadwise from this
 page: every release is signed with the same key, and Android refuses an update signed with another.
 
-## What it does
+## Or use it in your browser
 
-- Turn-by-turn voice directions, lane arrows and the arrival time, with up to three route choices,
-  toll prices and a toll-free option
-- Speed limits on your speed (flashing red when you go over), and warnings for speed cameras, toll
-  plazas, railway crossings and speed bumps
-- Add a stop along the way showing how much time it adds, and parking near where you're going
-- Search in English or Malay ("stesen minyak", "surau"), coordinates, or a location shared from
-  WhatsApp or Google Maps; your house can be picked on the map
-- Reports from other drivers: police, crashes, traffic, hazards, closed roads
-- Keeps going with the phone locked or folded; works on the Galaxy Flip's cover screen, Folds and
-  tablets; dark map at night and in tunnels
-- Optional routing maps you download, so routes work out on the phone without signal
+Nothing to install, and it works on iPhone. Open
+**[ycryga.github.io/roadwise-releases](https://ycryga.github.io/roadwise-releases/)**, then add it
+to your home screen (Chrome: ⋮ → Add to Home screen; Safari: Share → Add to Home Screen).
 
-See [what's new](CHANGELOG.md) and [privacy](PRIVACY.md): what the app sends, to whom and why.
+It has search, routes with live traffic, voice directions, stops, drivers' reports and the traffic
+map. Keep it open on screen while driving: browsers stop directions when the screen locks. The
+Android app keeps going with the screen off and also has tolls, speed cameras, lanes and offline
+routing.
 
-## Feedback
+## Your privacy
 
-Found a bug or a wrong speed limit? [Open an issue](https://github.com/ycryga/roadwise-releases/issues).
-Wrong roads, missing places or traffic lights are fixed on [OpenStreetMap](https://www.openstreetmap.org),
-which Roadwise reads from.
+Roadwise has no accounts, ads or tracking, and doesn't keep a record of where you drive. Sharing
+your waits at traffic lights, which improves everyone's arrival times, is off unless you turn it on.
+The [privacy page](PRIVACY.md) lists exactly what is sent, to whom, and why.
+
+## Help make it better
+
+- **Ideas?** Use **💡 Request a feature** in the app.
+- **Found a bug or a wrong speed limit?** [Open an issue](https://github.com/ycryga/roadwise-releases/issues).
+- **Wrong road, missing place or traffic light?** Fix it on [OpenStreetMap](https://www.openstreetmap.org),
+  which Roadwise reads from, and everyone benefits.
+- **Support Roadwise:** it's free with no ads; donations pay for live traffic and the servers.
+  Use **☕ Support Roadwise** in the app (DuitNow) or [Ko-fi](https://ko-fi.com/ycryga).
+
+See [what's new](CHANGELOG.md) in each release.
 
 ---
 
-Roadwise is built by [@ycryga](https://github.com/ycryga) with [Claude Code](https://claude.com/claude-code),
-Anthropic's AI coding assistant. Map data © OpenStreetMap contributors (ODbL).
+<sub>Made in Malaysia by [@ycryga](https://github.com/ycryga), built with [Claude Code](https://claude.com/claude-code).
+Map data © OpenStreetMap contributors (ODbL). Live traffic © TomTom.</sub>
