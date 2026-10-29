@@ -490,7 +490,7 @@ function selectRoute(i) {
   list.replaceChildren(...state.routes.map((r, k) => {
     const b = document.createElement("button");
     b.className = `route${k === i ? " on" : ""}`;
-    const traffic = r.delay >= 60 ? ` · 🚗 +${formatDuration(r.delay)}` : "";
+    const traffic = r.delay >= 60 ? ` · traffic +${formatDuration(r.delay)}` : "";
     b.innerHTML = `<span><div class="time"></div><div class="sub"></div></span><span class="sub"></span>`;
     b.querySelector(".time").textContent = formatDuration(r.seconds);
     b.querySelectorAll(".sub")[0].textContent = `${shortDistance(r.meters)}${r.via ? ` · ${r.via}` : ""}${traffic}`;
