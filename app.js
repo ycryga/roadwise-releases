@@ -25,18 +25,18 @@ const OFF_ROUTE_METERS = 50, OFF_ROUTE_UPDATES = 3, THEN_SHOWN_METERS = 400;
 const NEAR_END_METERS = 100, PARKING_SPEED = 3; // m/s, about 11 km/h
 
 const REPORT_TYPES = [
-  { key: "police", label: "Police", color: "#2F6FED", icon: "👮", short: "Police", subtypes: [
-    ["visible", "Police", "👮", "Police"], ["hidden", "Hidden police", "🕵️", "Hidden"], ["mobile_camera", "Mobile speed camera", "📸", "Camera"]] },
-  { key: "accident", label: "Accident", color: "#D93025", icon: "💥", short: "Crash", subtypes: [
-    ["minor", "Minor accident", "🚗", "Minor"], ["major", "Serious accident", "🚑", "Serious"]] },
-  { key: "traffic", label: "Traffic jam", color: "#9334E6", icon: "🚗", short: "Traffic", subtypes: [
-    ["slow", "Slow traffic", "🐢", "Slow"], ["heavy", "Heavy traffic", "🚙", "Heavy"], ["standstill", "Traffic at a standstill", "🛑", "Stopped"]] },
-  { key: "hazard", label: "Hazard", color: "#F29900", icon: "⚠️", short: "Hazard", subtypes: [
-    ["pothole", "Pothole", "🕳️", "Pothole"], ["object", "Object on the road", "📦", "Object"], ["stopped_vehicle", "Stopped vehicle", "🚘", "Car"],
-    ["animal", "Animal on the road", "🐄", "Animal"], ["signal_out", "Traffic lights out", "🚦", "Lights"], ["roadworks", "Roadworks", "🚧", "Roadworks"],
-    ["flood", "Flooding", "🌊", "Flood"], ["slippery", "Slippery road", "💧", "Slippery"], ["low_visibility", "Poor visibility", "🌫️", "Fog"]] },
-  { key: "closure", label: "Road closed", color: "#3C4043", icon: "⛔", short: "Closed", subtypes: [] },
-].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, icon, short]) => ({ key, title, icon, short })) }));
+  { key: "police", label: "Police", color: "#2F6FED", icon: "👮", glyph: "local_police", short: "Police", subtypes: [
+    ["visible", "Police", "👮", "Police", "local_police"], ["hidden", "Hidden police", "🕵️", "Hidden", "visibility_off"], ["mobile_camera", "Mobile speed camera", "📸", "Camera", "photo_camera"]] },
+  { key: "accident", label: "Accident", color: "#D93025", icon: "💥", glyph: "car_crash", short: "Crash", subtypes: [
+    ["minor", "Minor accident", "🚗", "Minor", "minor_crash"], ["major", "Serious accident", "🚑", "Serious", "emergency"]] },
+  { key: "traffic", label: "Traffic jam", color: "#9334E6", icon: "🚗", glyph: "traffic_jam", short: "Traffic", subtypes: [
+    ["slow", "Slow traffic", "🐢", "Slow", "speed"], ["heavy", "Heavy traffic", "🚙", "Heavy", "traffic_jam"], ["standstill", "Traffic at a standstill", "🛑", "Stopped", "traffic_jam"]] },
+  { key: "hazard", label: "Hazard", color: "#F29900", icon: "⚠️", glyph: "warning", short: "Hazard", subtypes: [
+    ["pothole", "Pothole", "🕳️", "Pothole", "tire_repair"], ["object", "Object on the road", "📦", "Object", "inventory_2"], ["stopped_vehicle", "Stopped vehicle", "🚘", "Car", "car_repair"],
+    ["animal", "Animal on the road", "🐄", "Animal", "pets"], ["signal_out", "Traffic lights out", "🚦", "Lights", "traffic"], ["roadworks", "Roadworks", "🚧", "Roadworks", "construction"],
+    ["flood", "Flooding", "🌊", "Flood", "flood"], ["slippery", "Slippery road", "💧", "Slippery", "water_drop"], ["low_visibility", "Poor visibility", "🌫️", "Fog", "foggy"]] },
+  { key: "closure", label: "Road closed", color: "#3C4043", icon: "⛔", glyph: "block", short: "Closed", subtypes: [] },
+].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, icon, short, glyph]) => ({ key, title, icon, short, glyph })) }));
 
 const $ = (id) => document.getElementById(id);
 /** An icon from the sprite in index.html, as markup. */
@@ -154,7 +154,7 @@ map.on("click", "reports", (e) => {
 });
 map.on("click", "incidents", (e) => {
   const inc = state.incidents[e.features[0].properties.i];
-  if (inc) toast(`${inc.symbol} ${inc.text || inc.spoken}${inc.delay >= 60 ? ` · +${formatDuration(inc.delay)}` : ""}`);
+  if (inc) toast(`${inc.text || inc.spoken}${inc.delay >= 60 ? ` · +${formatDuration(inc.delay)}` : ""}`);
 });
 
 /** The destination pin (as the app's ic_dest_pin): red, white rim and centre, 40px. */
@@ -203,18 +203,18 @@ function dropPin() {
   requestAnimationFrame(frame);
 }
 
-/** A map image of [emoji] on a [color] disc with a white rim, added the first time; returns its name. */
-function badge(emoji, color) {
-  const name = `badge:${emoji}:${color}`;
+/** A map image of the [glyph] icon in white on a [color] disc with a white rim and a soft shadow; returns its name. */
+function badge(glyph, color) {
+  const name = `badge:${glyph}:${color}`;
   if (map.hasImage(name)) return name;
-  const ratio = 2, size = 32 * ratio, c = size / 2;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const g = canvas.getContext("2d");
-  g.fillStyle = "#fff"; g.beginPath(); g.arc(c, c, c, 0, 2 * Math.PI); g.fill();
-  g.fillStyle = color; g.beginPath(); g.arc(c, c, c - 2.5 * ratio, 0, 2 * Math.PI); g.fill();
-  g.font = `${17 * ratio}px sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillText(emoji, c, c + ratio);
+  const ratio = 2, size = 36 * ratio, c = size / 2, r = c - 2 * ratio;
+  const g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
+  g.fillStyle = "rgba(0,0,0,.24)"; g.beginPath(); g.arc(c, c + ratio, r, 0, 2 * Math.PI); g.fill();
+  g.fillStyle = "#fff"; g.beginPath(); g.arc(c, c, r, 0, 2 * Math.PI); g.fill();
+  g.fillStyle = color; g.beginPath(); g.arc(c, c, r - 2.5 * ratio, 0, 2 * Math.PI); g.fill();
+  const box = 19 * ratio; // the icon, 19px, centred
+  g.save(); g.translate(c - box / 2, c - box / 2); g.scale(box / 960, box / 960); g.translate(0, 960);
+  g.fillStyle = "#fff"; g.fill(new Path2D(GLYPHS[glyph])); g.restore();
   map.addImage(name, g.getImageData(0, 0, size, size), { pixelRatio: ratio });
   return name;
 }
@@ -820,8 +820,8 @@ function showTraffic(on) {
 }
 
 const INCIDENT = {
-  1: ["💥", "#D93025", "Accident"], 8: ["⛔", "#3C4043", "Road closed"], 9: ["🚧", "#F29900", "Roadworks"], 7: ["🚧", "#F29900", "Roadworks"],
-  6: ["🚗", "#9334E6", "Traffic jam"], 14: ["🚘", "#F29900", "Broken-down vehicle"], 3: ["⚠️", "#F29900", "Incident"], 5: ["🌊", "#F29900", "Incident"],
+  1: ["car_crash", "#D93025", "Accident"], 8: ["block", "#3C4043", "Road closed"], 9: ["construction", "#F29900", "Roadworks"], 7: ["construction", "#F29900", "Roadworks"],
+  6: ["traffic_jam", "#9334E6", "Traffic jam"], 14: ["car_repair", "#F29900", "Broken-down vehicle"], 3: ["warning", "#F29900", "Incident"], 5: ["flood", "#F29900", "Incident"],
 };
 /** Incidents around the view: asked for again only on new ground or after a few minutes (each ask uses TomTom quota). */
 async function refreshIncidents() {
@@ -836,11 +836,11 @@ async function refreshIncidents() {
   const bbox = [area.getWest(), area.getSouth(), area.getEast(), area.getNorth()].map((x) => x.toFixed(4)).join(",");
   const list = await trafficCall(`?bbox=${bbox}`).then((o) => o.incidents).catch(() => []);
   state.incidents = list.filter((o) => o.points.length).map((o) => {
-    const [symbol, color, spoken] = INCIDENT[o.icon] ?? ["⚠️", "#F29900", "Incident"];
+    const [glyph, color, spoken] = INCIDENT[o.icon] ?? ["warning", "#F29900", "Incident"];
     const p = o.points[Math.floor(o.points.length / 2)];
-    return { at: [p[1], p[0]], symbol, color, spoken: o.icon === 3 || o.icon === 5 ? o.text || spoken : spoken, text: o.text, delay: o.delay || 0 };
+    return { at: [p[1], p[0]], glyph, color, spoken: o.icon === 3 || o.icon === 5 ? o.text || spoken : spoken, text: o.text, delay: o.delay || 0 };
   });
-  map.getSource("incidents").setData(fc(state.incidents.map((inc, i) => pointFeature(inc.at, { i, icon: badge(inc.symbol, inc.color) }))));
+  map.getSource("incidents").setData(fc(state.incidents.map((inc, i) => pointFeature(inc.at, { i, icon: badge(inc.glyph, inc.color) }))));
 }
 
 async function supabase(method, path, body) {
@@ -860,23 +860,23 @@ async function refreshReports() {
     const type = REPORT_TYPES.find((t) => t.key === r.type) ?? REPORT_TYPES[3];
     const sub = type.subtypes.find((s) => s.key === r.subtype);
     const created = Date.parse(r.created_at), confirmed = r.confirmed_at ? Date.parse(r.confirmed_at) : created;
-    return { id: r.id, at: [r.lng, r.lat], title: sub?.title ?? type.label, icon: sub?.icon ?? type.icon, color: type.color, created, confirmed };
+    return { id: r.id, at: [r.lng, r.lat], title: sub?.title ?? type.label, glyph: sub?.glyph ?? type.glyph, color: type.color, created, confirmed };
   });
   map.getSource("reports")?.setData(fc(state.reports.map((r) => {
     const minutes = (Date.now() - r.confirmed) / 60000;
     const t = Math.min(1, Math.max(0, (minutes - REPORT_FRESH_MIN) / (REPORT_MAX_AGE_MIN - REPORT_FRESH_MIN)));
-    return pointFeature(r.at, { id: r.id, icon: badge(r.icon, r.color), opacity: 1 - t * (1 - REPORT_OLDEST_OPACITY) });
+    return pointFeature(r.at, { id: r.id, icon: badge(r.glyph, r.color), opacity: 1 - t * (1 - REPORT_OLDEST_OPACITY) });
   })));
 }
 
 $("reportButton").onclick = () => {
   if (!state.here) { startLocation(); return toast("Finding your location…"); }
-  showTiles("What's on the road?", REPORT_TYPES.map((t) => ({ icon: t.icon, label: t.short, color: t.color,
+  showTiles("What's on the road?", REPORT_TYPES.map((t) => ({ glyph: t.glyph, label: t.short, color: t.color,
     pick: () => (t.subtypes.length ? showSubtypes(t) : sendReport(t, null)) })));
 };
 function showSubtypes(t) {
-  const tiles = t.subtypes.map((s) => ({ icon: s.icon, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
-  if (t.key === "hazard") tiles.push({ icon: t.icon, label: "Other", color: t.color, pick: () => sendReport(t, null) });
+  const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
+  if (t.key === "hazard") tiles.push({ glyph: t.glyph, label: "Other", color: t.color, pick: () => sendReport(t, null) });
   showTiles(t.label, tiles);
 }
 function showTiles(title, tiles) {
@@ -885,8 +885,8 @@ function showTiles(title, tiles) {
     const b = document.createElement("button");
     b.className = "tile";
     b.style.background = t.color;
-    b.innerHTML = `<b></b><span></span>`;
-    b.querySelector("b").textContent = t.icon;
+    b.innerHTML = `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
+    b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
     b.querySelector("span").textContent = t.label;
     b.onclick = t.pick;
     return b;
@@ -978,6 +978,8 @@ function requestFeature() {
 }
 
 // --- Start ---
+
+$("reportGlyph").setAttribute("d", GLYPHS.campaign);
 
 if (!localStorage.getItem("installSeen")) $("install").hidden = false;
 $("installOk").onclick = () => { $("install").hidden = true; localStorage.setItem("installSeen", "1"); };
