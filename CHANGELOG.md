@@ -3,6 +3,16 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.7.0 — 2026-10-29
+
+- **Roadwise in your browser**: [ycryga.github.io/roadwise-releases](https://ycryga.github.io/roadwise-releases/)
+  works on any phone, iPhone too, with nothing to install. Add it to your home screen. It has
+  search, route choices with live traffic, voice directions, drivers' reports and the traffic map;
+  keep it open on screen while driving.
+- **☕ Support Roadwise**: Roadwise stays free with no ads. The list under the search box shows this
+  month's donations towards the running costs, with DuitNow QR and Ko-fi.
+- **💡 Request a feature**: tell us what would make Roadwise better, right from the app.
+
 ## 0.6.0 — 2026-10-29
 
 - **Traffic map** (🚦): slow (orange) and stopped (red) traffic on every road, drawn thin down the
