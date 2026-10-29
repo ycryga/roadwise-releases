@@ -8,6 +8,7 @@ under **ℹ️ About, privacy & licences**.
 
 - Home, Work and recent places.
 - The stops your phone notices (where you waited and for how long), used for arrival times.
+- How the last drive's arrival time compared with the real one, until the next drive or the app closes.
 - Downloaded routing maps, and cached speed cameras, toll plazas and speed bumps (kept a week).
 - Reports you made while offline, until they can be sent (dropped after 30 minutes).
 
@@ -23,12 +24,14 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | The path of your chosen route | [Valhalla](https://valhalla1.openstreetmap.de) by FOSSGIS | Speed limits, tolls, traffic lights, tunnels and lane arrows |
 | The area (about 110 km squares) around your route | [Overpass API](https://overpass-api.de) | Speed cameras, toll plazas, railway crossings and speed bumps |
 | The area you're looking at | [OpenFreeMap](https://openfreemap.org) | Map tiles |
-| The path of each route on offer, and the area you're looking at or driving through | Roadwise's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, accidents, roadworks and closures. Answers are shared between phones for two minutes and not kept; TomTom sees Roadwise's server, not your phone. |
+| The path of each route on offer, and the area you're looking at or driving through | Roadwise's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, speed limits, accidents, roadworks, closures and the traffic map. Answers are shared between phones for two minutes and not kept; TomTom sees Roadwise's server, not your phone. |
+| What you search for when you press search, with your rough location | Roadwise's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
 | A short map link you share to Roadwise (maps.app.goo.gl) | Google | Finding out where the link points |
 | Reports you choose to send (kind and position) and "still there?" answers | Roadwise's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Roadwise's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
 | **Only if you switch on "Share stop times"**: where you waited while navigating | Roadwise's database on Supabase | Better arrival times for everyone |
+| **Only if you switch on "Share stop times"**: drives whose arrival time was more than 5 minutes off | Roadwise's database on Supabase | Checking how accurate arrival times are |
 
 ### Shared stop times
 
@@ -43,6 +46,12 @@ is sent as:
 Nothing identifies you, your phone or the trip: no ID, no date or time, and nothing from the first
 and last 300 m of a drive, so your home and work don't show. Waits are sent after the drive, in no
 particular order. The database keeps the last 12 weeks and only ever hands out totals per spot.
+
+When a guided drive reaches its destination more than 5 minutes earlier or later than the arrival
+time shown at Start, the same setting also sends: the time shown, the time it took, the length
+rounded to a km, the time-of-week band and whether live traffic was counted. No positions, no ID.
+The phone shows the last drive's result in the list under the search box and forgets it when the
+next drive starts or the app closes.
 
 ## Location
 

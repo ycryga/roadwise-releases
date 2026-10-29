@@ -3,6 +3,22 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.6.0 — 2026-10-29
+
+- **Traffic map** (🚦): slow (orange) and stopped (red) traffic on every road, drawn thin down the
+  middle of the road. Free-flowing roads are left alone. Remembered between launches.
+- **More places in search**: pressing search also finds houses and shops the free map data lacks.
+- **Speed limits** on roads OpenStreetMap has none for.
+- **Reports show their symbol** on the map (👮 📸 💥 🚧 …) instead of a plain coloured dot; so do
+  accidents, roadworks and closures.
+- **A loading bar** under the search box while searching and while the route is worked out, so
+  the wait doesn't look like nothing's happening.
+- **How accurate was the arrival time?** After a drive, the list under the search box shows what
+  Roadwise said and how long it really took. With "Share stop times" on, drives more than 5 minutes
+  off are sent (no positions) so arrival times can be checked.
+- **Fixed**: towns turned black on the zoomed-out map after the night colours switched back to day.
+- **Fixed**: shared stop times weren't being saved.
+
 ## 0.5.0 — 2026-10-29
 
 - **Live traffic** (from TomTom): arrival times count today's traffic, slow and stopped stretches
