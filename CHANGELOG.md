@@ -3,6 +3,14 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.10.1 — 2026-10-29
+
+- **Clearer reports**: reports and incidents on the map, and the report buttons, use proper icons
+  (police badge, crashed car, traffic jam, roadworks, flood…) instead of emoji, so they're sharp
+  and easy to tell apart at a glance.
+- **Report button**: an orange megaphone, so it's easy to find and doesn't look like a warning.
+- Same in the browser version.
+
 ## 0.10.0 — 2026-10-29
 
 - **Several stops**: add up to 8 stops on the way (📍+, a place on the map, or a road you tap).
