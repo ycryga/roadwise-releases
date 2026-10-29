@@ -28,6 +28,7 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | What you search for when you press search, with your rough location | Roadwise's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
 | A short map link you share to Roadwise (maps.app.goo.gl) | Google | Finding out where the link points |
 | Reports you choose to send (kind and position) and "still there?" answers | Roadwise's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
+| Feature requests you type and send (only the text, and whether it came from the app or the web) | Roadwise's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Roadwise's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
 | **Only if you switch on "Share stop times"**: where you waited while navigating | Roadwise's database on Supabase | Better arrival times for everyone |
@@ -65,6 +66,12 @@ times or arrival times.
 Roadwise uses your location to show where you are and to navigate. While you're navigating it keeps
 using it with the screen off or another app in front (shown by the "Navigating" notification), so
 directions keep coming; it stops when you press ■ or close the app.
+
+## Donations
+
+Donating is optional and happens outside Roadwise: DuitNow in your own bank or e-wallet app, or
+Ko-fi and Buy Me a Coffee in your browser, each under its own privacy policy. Roadwise never sees
+your payment details, and only shows the month's total raised, which is typed in by hand.
 
 ## The public services
 

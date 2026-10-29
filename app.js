@@ -202,9 +202,10 @@ $("search").addEventListener("input", () => {
   const q = $("search").value.trim();
   $("clear").hidden = !q && !state.destination;
   clearTimeout(searchTimer);
-  if (q.length < 3) return showResults([]);
+  if (q.length < 3) return q ? showResults([]) : showMenu();
   searchTimer = setTimeout(() => search(q, false), 350);
 });
+$("search").addEventListener("focus", () => { if (!$("search").value) showMenu(); });
 $("search").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   clearTimeout(searchTimer);
@@ -621,6 +622,76 @@ async function sendReport(type, sub) {
   } catch (e) {
     toast(`Couldn't send report: ${e.message}`);
   }
+}
+
+// --- Supporting Roadwise ---
+
+let donations = null;
+const KOFI_URL = /^https:\/\/(www\.)?ko-fi\.com\/[A-Za-z0-9_]+\/?$/;
+const BMAC_URL = /^https:\/\/(www\.)?buymeacoffee\.com\/[A-Za-z0-9_.-]+\/?$/;
+supabase("GET", "donations?select=*").then((rows) => {
+  const d = rows[0];
+  // Only the real pages, whatever the row says.
+  if (d) donations = { ...d, kofi_url: KOFI_URL.test(d.kofi_url ?? "") ? d.kofi_url : null, bmac_url: BMAC_URL.test(d.bmac_url ?? "") ? d.bmac_url : null };
+}).catch(() => {});
+
+/** What the empty search box offers: donating and asking for a feature. */
+function showMenu() {
+  const row = (icon, title, detail, onclick) => {
+    const b = document.createElement("button");
+    b.className = "row";
+    b.innerHTML = `<span class="pin"></span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
+    b.querySelector(".pin").textContent = icon;
+    b.querySelector(".name").textContent = title;
+    b.querySelector(".detail").textContent = detail;
+    b.onmousedown = (e) => e.preventDefault(); // Keep the keyboard's blur from eating the tap.
+    b.onclick = () => { $("search").blur(); showResults([]); onclick(); };
+    return b;
+  };
+  $("results").replaceChildren(
+    row("☕", "Support Roadwise", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
+    row("💡", "Request a feature", "What would make Roadwise better for you?", requestFeature),
+  );
+}
+
+function showSheet(title, ...content) {
+  $("sheetTitle").textContent = title;
+  $("tiles").replaceChildren(...content);
+  $("sheet").hidden = false;
+}
+
+function showSupport() {
+  const text = document.createElement("p");
+  text.className = "sheetText";
+  text.textContent = `Roadwise is free, with no ads. Live traffic and the servers cost about RM${donations?.goal_rm ?? 300} a month; ` +
+    "donations keep it free for everyone. To give with DuitNow, save or screenshot this QR, then in your bank or Touch 'n Go app " +
+    "choose Scan → from gallery. Any amount helps. Thank you!";
+  const qr = Object.assign(document.createElement("img"), { src: "duitnow.png", alt: "DuitNow QR", className: "qr" });
+  qr.onerror = () => qr.remove(); // Not added yet.
+  const links = [["Ko-fi", donations?.kofi_url], ["Buy Me a Coffee", donations?.bmac_url]].filter(([, url]) => url).map(([label, url]) =>
+    Object.assign(document.createElement("a"), { className: "primary payLink", href: url, target: "_blank", rel: "noopener", textContent: label }));
+  if (links.length) text.textContent += " Or give by card:";
+  showSheet("☕ Support Roadwise", text, ...links, qr);
+}
+
+function requestFeature() {
+  const box = Object.assign(document.createElement("textarea"), { rows: 4, maxLength: 500, placeholder: "What would make Roadwise better for you?" });
+  const send = Object.assign(document.createElement("button"), { className: "primary", textContent: "Send" });
+  send.onclick = async () => {
+    const text = box.value.trim();
+    if (text.length < 5) return toast("Tell us a bit more");
+    send.disabled = true;
+    try {
+      await supabase("POST", "feature_requests", { text, source: "web" });
+      $("sheet").hidden = true;
+      toast("Thanks! 💡 Request sent");
+    } catch (e) {
+      send.disabled = false;
+      toast(`Couldn't send it: ${e.message}`);
+    }
+  };
+  showSheet("💡 Request a feature", box, send);
+  box.focus();
 }
 
 // --- Start ---
