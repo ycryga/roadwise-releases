@@ -53,7 +53,7 @@ const $ = (id) => document.getElementById(id);
 /** An icon from the sprite in index.html, as markup. */
 const icon = (name) => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const state = {
-  here: null, heading: null, speed: 0, accuracy: 50,
+  here: null, heading: null, speed: 0, speedKmh: null, accuracy: 50,
   destination: null, routes: [], selected: 0,
   stops: [], origin: null, picking: null, // stops in visiting order; a start other than here (planning only); "stop" | "origin" while searching for one
   nav: null, following: true, wakeLock: null,
@@ -133,10 +133,11 @@ const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "P
 map.on("load", () => {
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
-  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
+  for (const s of ["alts", "route", "driven", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": "#9AA0A6", "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": "#9AA0A6", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -325,6 +326,7 @@ function startLocation() {
     state.here = [c.longitude, c.latitude];
     state.accuracy = c.accuracy || 50;
     state.speed = c.speed || 0;
+    state.speedKmh = c.speed == null || !Number.isFinite(c.speed) ? null : Math.round(c.speed * 3.6);
     if (c.heading != null && !Number.isNaN(c.heading) && state.speed > 2) state.heading = c.heading;
     if (first) {
       first = false;
@@ -609,6 +611,9 @@ async function fetchRoutes(points, alternatives) {
     if (!t) return;
     r.seconds = t.seconds;
     r.delay = t.delaySeconds || 0;
+    r.limits = (t.limits || []).filter((s) => s.points.length >= 2).map((s) => ({
+      kmh: s.kmh, points: s.points.map(([lat, lng]) => [lng, lat]),
+    }));
     r.slow = (t.slow || []).filter((s) => s.points.length >= 2).map((s) => ({
       points: s.points.map(([lat, lng]) => [lng, lat]),
       color: s.level >= 4 || s.kind === "ROAD_CLOSURE" ? "#5F1A1A" : s.level >= 3 ? "#D93025" : "#F29900",
@@ -649,7 +654,12 @@ function drawRoutes() {
   const r = state.nav?.route ?? state.routes[state.selected];
   const alts = state.nav ? [] : state.routes.map((x, k) => (k === state.selected ? null : lineFeature(x.points, { index: k }))).filter(Boolean);
   map.getSource("alts")?.setData(fc(alts));
-  map.getSource("route")?.setData(r ? lineFeature(r.points) : empty);
+  const progress = state.nav?.progress;
+  const segment = progress && r ? Math.max(0, Math.min(progress.segment, r.points.length - 2)) : -1;
+  const driven = segment >= 0 ? [...r.points.slice(0, segment + 1), progress.point] : [];
+  const remaining = segment >= 0 ? [progress.point, ...r.points.slice(segment + 1)] : r?.points;
+  map.getSource("driven")?.setData(driven.length > 1 ? fc([lineFeature(driven)]) : empty);
+  map.getSource("route")?.setData(remaining ? lineFeature(remaining) : empty);
   map.getSource("slow")?.setData(fc((r?.slow ?? []).map((s) => lineFeature(s.points, { color: s.color }))));
   map.getSource("dest")?.setData(state.destination ? fc([pointFeature(state.destination.at)]) : empty);
   map.getSource("stops")?.setData(fc(state.stops.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
@@ -797,7 +807,7 @@ function startNavigation() {
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
   if (!r) return;
-  state.nav = { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, rerouting: false,
+  state.nav = { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, rerouting: false, progress: null,
     startedAt: Date.now(), predicted: r.seconds, cumulative: cumulative(r.points) };
   state.following = true;
   $("searchBox").hidden = true;
@@ -868,11 +878,24 @@ function navUpdate(nav, here) {
     secondsLeft = total ? (nav.route.seconds * left) / total : 0;
   }
   return { text, dist, speak, arrived, step, then: after && gap < THEN_SHOWN_METERS ? after : null, gap,
-    offRoute: nav.off >= OFF_ROUTE_UPDATES, snapped: s && !off && s.meters < 30 ? s.point : null, left, secondsLeft };
+    offRoute: nav.off >= OFF_ROUTE_UPDATES, snapped: s && !off && s.meters < 30 ? s.point : null, progress: s, left, secondsLeft };
 }
 
 function showNav(u) {
   const nav = state.nav;
+  nav.progress = u.progress;
+  const segment = u.progress?.segment ?? 0;
+  const points = nav.route.points;
+  const travelled = u.progress ? [...points.slice(0, segment + 1), u.progress.point] : [];
+  const remaining = u.progress ? [u.progress.point, ...points.slice(segment + 1)] : points;
+  map.getSource("driven")?.setData(travelled.length > 1 ? fc([lineFeature(travelled)]) : empty);
+  map.getSource("route")?.setData(lineFeature(remaining));
+  const limit = speedLimitAt(state.here, nav.route.limits || []);
+  $("currentSpeed").textContent = state.speedKmh == null ? "–" : String(state.speedKmh);
+  $("speedLimit").textContent = limit == null ? "" : String(limit);
+  $("speedLimit").hidden = limit == null;
+  $("speedView").classList.toggle("has-limit", limit != null);
+  $("speedView").classList.toggle("speeding", limit != null && state.speedKmh != null && state.speedKmh > limit + 5);
   $("arrow").textContent = symbolFor(u.step);
   $("bannerDistance").textContent = u.arrived ? "Arrived" : shortDistance(u.dist);
   $("bannerText").textContent = bannerFor(u.step);
@@ -892,6 +915,15 @@ function showNav(u) {
   }
 }
 
+function speedLimitAt(at, limits) {
+  let nearest = null;
+  for (const limit of limits) {
+    const candidate = snap(at, limit.points);
+    if (candidate && (!nearest || candidate.meters < nearest.meters)) nearest = { meters: candidate.meters, kmh: limit.kmh };
+  }
+  return nearest?.meters < 25 ? nearest.kmh : null;
+}
+
 async function reroute() {
   const nav = state.nav;
   nav.rerouting = true;
@@ -900,7 +932,7 @@ async function reroute() {
   if (state.nav !== nav) return;
   nav.rerouting = false;
   if (!r) return;
-  Object.assign(nav, { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, cumulative: cumulative(r.points) });
+  Object.assign(nav, { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, progress: null, cumulative: cumulative(r.points) });
   drawRoutes();
 }
 

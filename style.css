@@ -102,7 +102,16 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .route .time { font-size: 20px; font-weight: 700; color: var(--green); }
 .route .sub { color: var(--muted); font-size: 14px; }
 .route > .sub { white-space: nowrap; }
-#navInfo { flex: 1; }
+#navInfo { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; }
+.navStats { min-width: 0; }
+#speedView { position: relative; flex: none; width: 72px; height: 72px; display: grid; place-items: center; border: 2px solid var(--field-line); border-radius: 50%; background: #fff; color: #1B1B1F; }
+#speedReading { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+#speedReading strong { font-size: 25px; font-variant-numeric: tabular-nums; }
+#speedReading small { margin-top: 3px; font-size: 11px; color: #5F6368; }
+#speedView.has-limit #speedReading { padding-top: 14px; }
+#speedLimit { position: absolute; z-index: 1; top: -11px; left: 50%; transform: translateX(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 5px solid #D93025; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#speedView.speeding { border-color: #D93025; background: #D93025; color: #fff; }
+#speedView.speeding #speedReading small { color: #fff; }
 #navEta { font-size: 28px; font-weight: 700; color: var(--green); }
 #navLeft { color: var(--muted); }
 .primary { flex: 1; border: 0; border-radius: 28px; padding: 14px; background: var(--accent); color: #fff; font-size: 18px; font-weight: 600; }

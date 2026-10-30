@@ -74,8 +74,14 @@
     <div id="trip"></div>
     <div id="routes"></div>
     <div id="navInfo" hidden>
-      <div id="navEta"></div>
-      <div id="navLeft"></div>
+      <div id="speedView" role="group" aria-label="GPS speed and speed limit">
+        <div id="speedLimit" hidden></div>
+        <div id="speedReading"><strong id="currentSpeed">–</strong><small>km/h</small></div>
+      </div>
+      <div class="navStats">
+        <div id="navEta"></div>
+        <div id="navLeft"></div>
+      </div>
     </div>
     <button id="go" class="primary"><svg class="ico" aria-hidden="true"><use href="#i-navigation"/></svg> Start</button>
   </div>
