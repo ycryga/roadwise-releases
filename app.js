@@ -12,6 +12,7 @@ const KL = [101.6869, 3.139];
 const TRAFFIC_MIN_ZOOM = 10;
 const TRAFFIC_SLOW_BELOW = 0.75;
 const INCIDENTS_MIN_ZOOM = 11;
+const CLUSTER_MAX_ZOOM = 13;
 const INCIDENTS_REFRESH_MS = 3 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
@@ -131,7 +132,9 @@ const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "P
 map.on("load", () => {
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
-  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "reports", "incidents", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
+  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
+  // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
+  for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": "#9AA0A6", "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -145,9 +148,15 @@ map.on("load", () => {
   map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
   map.addLayer({ id: "dest", type: "symbol", source: "dest",
     layout: { "icon-image": "dest-pin", "icon-anchor": "bottom", "icon-allow-overlap": true, "icon-ignore-placement": true } });
-  map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM,
+  for (const [s, minzoom] of [["incidents", INCIDENTS_MIN_ZOOM], ["reports", 0]]) {
+    // A small plain grey dot, no number, so it never looks like a numbered search result.
+    map.addLayer({ id: `${s}-clusters`, type: "circle", source: s, minzoom, filter: ["has", "point_count"],
+      paint: { "circle-color": "#5F6368", "circle-opacity": 0.75, "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+    map.on("click", `${s}-clusters`, (e) => map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom() + 2, CLUSTER_MAX_ZOOM + 1) }));
+  }
+  map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM, filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
-  map.addLayer({ id: "reports", type: "symbol", source: "reports",
+  map.addLayer({ id: "reports", type: "symbol", source: "reports", filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
   map.addLayer({ id: "me", type: "circle", source: "me", paint: { "circle-color": "#2F6FED", "circle-radius": 9, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
   map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 17, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
@@ -408,7 +417,8 @@ async function search(q, pressed) {
   searchable.sort((a, b) => distance(near, a.at) - distance(near, b.at));
   if (pressed && !searchable.length) toast(`No places found within ${ADDRESS_SEARCH_RADIUS_KM} km`);
   let routable = searchable;
-  if (!state.picking && searchable.length) {
+  // Only on a pressed search: while typing this would ask the free routing server on every key.
+  if (pressed && !state.picking && searchable.length) {
     try {
       const candidates = searchable.slice(0, 25);
       const coords = [near, ...candidates.map((p) => p.at)];
@@ -462,11 +472,11 @@ function showResults(places, near, fit = false) {
     if (places.length > 1 && places.slice(1).some((p) => distance(places[0].at, p.at) > 100)) {
       const bounds = new maplibregl.LngLatBounds();
       places.forEach((p) => bounds.extend(p.at));
-      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 48 }, maxZoom: 16, duration: 500 });
+      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
     } else {
       const [lng, lat] = places[0].at;
       const bounds = new maplibregl.LngLatBounds([lng - 0.003, lat - 0.003], [lng + 0.003, lat + 0.003]);
-      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 48 }, maxZoom: 16, duration: 500 });
+      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
     }
   }
   const list = $("results");
@@ -479,7 +489,7 @@ function showResults(places, near, fit = false) {
       row.querySelector(".pin").classList.add("candidate-number");
       row.querySelector(".pin").textContent = String(i + 1);
     }
-    row.querySelector(".name").textContent = fit ? `${i + 1}. ${p.name}` : p.name;
+    row.querySelector(".name").textContent = p.name;
     row.querySelector(".detail").textContent = p.detail;
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";
     row.onclick = () => choose(p);
