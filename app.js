@@ -315,7 +315,10 @@ function startLocation() {
     state.accuracy = c.accuracy || 50;
     state.speed = c.speed || 0;
     if (c.heading != null && !Number.isNaN(c.heading) && state.speed > 2) state.heading = c.heading;
-    if (first) { first = false; map.jumpTo({ center: state.here, zoom: 15 }); }
+    if (first) {
+      first = false;
+      if (state.following) map.jumpTo({ center: state.here, zoom: 15 });
+    }
     onLocation();
   }, (e) => toast(e.code === 1 ? "Allow location to see where you are and navigate" : "Can't find your location"),
   { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
@@ -360,10 +363,14 @@ $("search").addEventListener("input", () => {
 $("search").addEventListener("focus", () => { if (!$("search").value && !state.picking) showMenu(); });
 $("search").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
+  submitSearch();
+});
+$("submitSearch").onclick = submitSearch;
+function submitSearch() {
   clearTimeout(searchTimer);
   const q = $("search").value.trim();
   if (q) { $("search").blur(); search(q, true); }
-});
+}
 $("clear").onclick = () => {
   if (state.picking) return stopPicking();
   $("search").value = "";
@@ -375,6 +382,7 @@ $("clear").onclick = () => {
 /** Photon while typing; on Enter, TomTom's places (houses, shops the free data lacks) are added. */
 async function search(q, pressed) {
   const run = ++searchRun;
+  if (pressed) state.following = false;
   const near = state.here ?? map.getCenter().toArray();
   const places = await withProgress(async () => {
     const free = photon(q, near).catch(() => []);

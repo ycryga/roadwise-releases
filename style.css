@@ -36,7 +36,7 @@ button { font: inherit; cursor: pointer; }
 .fab { display: grid; place-items: center; }
 #reportButton { color: #fff; background: #E8710A; }
 .row .pin { color: var(--blue); }
-#searchBox .lead { color: var(--muted); display: flex; }
+#searchBox .lead { color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .icon { display: grid; place-items: center; }
 #map { position: fixed; inset: 0; }
 
@@ -45,6 +45,7 @@ button { font: inherit; cursor: pointer; }
 
 #searchBox { position: relative; display: flex; flex-wrap: wrap; align-items: center; padding: 4px 6px 4px 14px; }
 #searchBox .lead { opacity: .7; }
+#submitSearch { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; }
 #search { flex: 1; min-width: 0; border: 0; outline: 0; font-size: 17px; padding: 12px 10px; background: transparent; color: var(--text); }
 #search::-webkit-search-cancel-button { display: none; }
 .icon { border: 0; background: var(--chip); border-radius: 50%; width: 38px; height: 38px; color: var(--muted); }
