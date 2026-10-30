@@ -394,9 +394,7 @@ async function search(q, pressed) {
     return [...all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i), ...(await drivers)];
   });
   if (run !== searchRun) return; // A newer search has taken over.
-  const words = q.toLowerCase().split(/\W+/).filter((w) => w.length > 1);
-  const full = (p) => words.every((w) => p.name.toLowerCase().includes(w));
-  places.sort((a, b) => full(b) - full(a) || distance(near, a.at) - distance(near, b.at));
+  places.sort((a, b) => distance(near, a.at) - distance(near, b.at));
   if (pressed && !places.length) toast("No places found");
   showResults(places.slice(0, 10), near, pressed);
 }
@@ -427,10 +425,9 @@ function showResults(places, near, fit = false) {
   setSearchCandidates(shownResults);
   const outsideView = fit && places.length && !places.some((p) => map.getBounds().contains(p.at));
   if (places.length && (fit || outsideView)) {
-    const nearby = places.filter((p) => distance(places[0].at, p.at) <= 1500);
-    if (nearby.length > 1 && nearby.slice(1).some((p) => distance(nearby[0].at, p.at) > 100)) {
+    if (places.length > 1 && places.slice(1).some((p) => distance(places[0].at, p.at) > 100)) {
       const bounds = new maplibregl.LngLatBounds();
-      nearby.forEach((p) => bounds.extend(p.at));
+      places.forEach((p) => bounds.extend(p.at));
       map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 48 }, maxZoom: 16, duration: 500 });
     } else {
       const [lng, lat] = places[0].at;
