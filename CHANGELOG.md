@@ -3,6 +3,15 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.1 — 2026-10-30
+
+- **Search finds far-away places again**: 0.12.0 only showed results within 50 km, which hid
+  places you meant to find in another town or state.
+- **Best match first**: places whose name has every word you typed come first, then the nearest.
+  Searching "Jambatan Pulau Pinang" from KL now shows the bridge, not a KL street with "Pulau
+  Pinang" in its name.
+- **All result pins in view**: the map leaves room for the list above it and the buttons below it.
+
 ## 0.12.0 — 2026-10-30
 
 - **Search results on the map**: press search (or the 🔍 button) and up to 10 results are
