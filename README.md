@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="icon.png" width="96" alt="Roadwise icon">
+  <img src="icon.png" width="96" alt="Mana icon">
 </p>
 
-<h1 align="center">Roadwise</h1>
+<h1 align="center">Mana</h1>
+
+<p align="center"><i>Formerly Roadwise. Same app, new name: <b>mana</b> is Malay for "where".</i></p>
 
 <p align="center">
   <b>Free driving directions for Malaysia, with live traffic and reports from other drivers.</b><br>
@@ -18,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="screenshots/banner.jpg" alt="Roadwise: turn-by-turn directions at night, a place card for KLCC, a trip with two stops, and search results" width="100%">
+  <img src="screenshots/banner.jpg" alt="Mana: turn-by-turn directions at night, a place card for KLCC, a trip with two stops, and search results" width="100%">
 </p>
 
 ## What it does
@@ -47,13 +49,13 @@
 
 ## Install on Android
 
-1. On your Android phone (Android 8 or newer), download `roadwise-vX.Y.Z.apk` from the
+1. On your Android phone (Android 8 or newer), download `mana-vX.Y.Z.apk` from the
    **[latest release](https://github.com/ycryga/roadwise-releases/releases/latest)**.
 2. Open it. If Android asks, allow your browser to install apps.
-3. Open Roadwise and allow location. Allow notifications too, to keep directions coming with the
+3. Open Mana and allow location. Allow notifications too, to keep directions coming with the
    screen off.
 
-Updates install over the old version and keep your saved places. Only install Roadwise from this
+Updates install over the old version and keep your saved places. Only install Mana from this
 page: every release is signed with the same key, and Android refuses an update signed with another.
 
 ## Or use it in your browser
@@ -69,7 +71,7 @@ routing.
 
 ## Your privacy
 
-Roadwise has no accounts, ads or tracking, and doesn't keep a record of where you drive. Sharing
+Mana has no accounts, ads or tracking, and doesn't keep a record of where you drive. Sharing
 your waits at traffic lights, which improves everyone's arrival times, is off unless you turn it on.
 The [privacy page](PRIVACY.md) lists exactly what is sent, to whom, and why.
 
@@ -78,9 +80,9 @@ The [privacy page](PRIVACY.md) lists exactly what is sent, to whom, and why.
 - **Ideas?** Use **💡 Request a feature** in the app.
 - **Found a bug or a wrong speed limit?** [Open an issue](https://github.com/ycryga/roadwise-releases/issues).
 - **Wrong road, missing place or traffic light?** Fix it on [OpenStreetMap](https://www.openstreetmap.org),
-  which Roadwise reads from, and everyone benefits.
-- **Support Roadwise:** it's free with no ads; donations pay for live traffic and the servers.
-  Use **☕ Support Roadwise** in the app (DuitNow) or [Ko-fi](https://ko-fi.com/ycryga).
+  which Mana reads from, and everyone benefits.
+- **Support Mana:** it's free with no ads; donations pay for live traffic and the servers.
+  Use **☕ Support Mana** in the app (DuitNow) or [Ko-fi](https://ko-fi.com/ycryga).
 
 See [what's new](CHANGELOG.md) in each release.
 

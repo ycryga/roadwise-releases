@@ -1,6 +1,6 @@
-# Roadwise privacy
+# Mana privacy
 
-Roadwise has no accounts, no ads and no analytics. It doesn't collect your name, phone number or
+Mana has no accounts, no ads and no analytics. It doesn't collect your name, phone number or
 contacts, and it doesn't keep a record of where you drive on any server. The same text is in the app
 under **ℹ️ About, privacy & licences**.
 
@@ -14,7 +14,7 @@ under **ℹ️ About, privacy & licences**.
 
 ## What is sent, and to whom
 
-To work, Roadwise asks these services for things. Each gets only what that request needs.
+To work, Mana asks these services for things. Each gets only what that request needs.
 
 | What | Sent to | Why |
 | --- | --- | --- |
@@ -24,17 +24,17 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | The path of your chosen route | [Valhalla](https://valhalla1.openstreetmap.de) by FOSSGIS | Speed limits, tolls, traffic lights, tunnels and lane arrows |
 | The area (about 110 km squares) around your route | [Overpass API](https://overpass-api.de) | Speed cameras, toll plazas, railway crossings and speed bumps |
 | The area you're looking at | [OpenFreeMap](https://openfreemap.org) | Map tiles |
-| The path of each route on offer, and the area you're looking at or driving through | Roadwise's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, speed limits, accidents, roadworks, closures and the traffic map. Answers are shared between phones for two minutes and not kept; TomTom sees Roadwise's server, not your phone. |
-| What you search for when you press search, with your rough location | Roadwise's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
-| A short map link you share to Roadwise (maps.app.goo.gl) | Google | Finding out where the link points |
-| Reports you choose to send (kind and position) and "still there?" answers | Roadwise's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
-| Places you add for everyone (name, kind and position) and "not here" answers | Roadwise's database on Supabase | Other drivers finding them in search; they're public and kept |
+| The path of each route on offer, and the area you're looking at or driving through | Mana's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, speed limits, accidents, roadworks, closures and the traffic map. Answers are shared between phones for two minutes and not kept; TomTom sees Mana's server, not your phone. |
+| What you search for when you press search, with your rough location | Mana's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
+| A short map link you share to Mana (maps.app.goo.gl) | Google | Finding out where the link points |
+| Reports you choose to send (kind and position) and "still there?" answers | Mana's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
+| Places you add for everyone (name, kind and position) and "not here" answers | Mana's database on Supabase | Other drivers finding them in search; they're public and kept |
 | **Only if you tick it when adding a place**: its name, kind and position | [OpenStreetMap](https://www.openstreetmap.org) as an anonymous public note | A mapper checking it and adding it to the map |
-| Feature requests you type and send (only the text, and whether it came from the app or the web) | Roadwise's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
-| Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |
-| The area of your trip | Roadwise's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
-| **Only if you say yes to "Share stop times"**: where you waited while navigating | Roadwise's database on Supabase | Better arrival times for everyone |
-| **Only if you say yes to "Share stop times"**: drives whose arrival time was more than 5 minutes off | Roadwise's database on Supabase | Checking how accurate arrival times are |
+| Feature requests you type and send (only the text, and whether it came from the app or the web) | Mana's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
+| Toll amounts you report, with a random ID the app made (not linked to you) | Mana's database on Supabase | Keeping the toll fares up to date |
+| The area of your trip | Mana's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
+| **Only if you say yes to "Share stop times"**: where you waited while navigating | Mana's database on Supabase | Better arrival times for everyone |
+| **Only if you say yes to "Share stop times"**: drives whose arrival time was more than 5 minutes off | Mana's database on Supabase | Checking how accurate arrival times are |
 
 ### Shared stop times
 
@@ -65,14 +65,14 @@ times or arrival times.
 
 ## Location
 
-Roadwise uses your location to show where you are and to navigate. While you're navigating it keeps
+Mana uses your location to show where you are and to navigate. While you're navigating it keeps
 using it with the screen off or another app in front (shown by the "Navigating" notification), so
 directions keep coming; it stops when you press ■ or close the app.
 
 ## Donations
 
-Donating is optional and happens outside Roadwise: DuitNow in your own bank or e-wallet app, or
-Ko-fi and Buy Me a Coffee in your browser, each under its own privacy policy. Roadwise never sees
+Donating is optional and happens outside Mana: DuitNow in your own bank or e-wallet app, or
+Ko-fi and Buy Me a Coffee in your browser, each under its own privacy policy. Mana never sees
 your payment details, and only shows the month's total raised, which is typed in by hand.
 
 ## The public services

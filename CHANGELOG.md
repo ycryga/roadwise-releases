@@ -1,7 +1,15 @@
 # Changelog
 
-What changed in each Roadwise release. The APK for each one is on its
+What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
+
+## 0.13.0 — 2026-10-30
+
+- **Roadwise is now Mana**: *mana* is Malay for "where". It has a new logo and app icon: a rounded
+  **m** that arrives at a red dot, in the navy, red and white of the Johor flag. The update installs
+  over Roadwise and keeps your saved places, maps and settings.
+- **Ke mana?**: with your phone or browser set to Malay, the search box asks "Ke mana?". Otherwise it
+  still says "Where to?".
 
 ## 0.12.6 — 2026-10-30
 
