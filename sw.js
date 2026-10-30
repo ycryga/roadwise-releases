@@ -7,7 +7,7 @@ self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request.url, { cache: "no-cache" }) // Check with the server, never a stale browser copy.
       .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
       .catch(() => caches.match(e.request)),
   );

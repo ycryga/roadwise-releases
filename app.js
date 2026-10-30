@@ -399,7 +399,10 @@ async function search(q, pressed) {
   const near = state.here ?? map.getCenter().toArray();
   // Typed or pasted coordinates ("3.43999, 101.69213"): that exact spot, as in the app.
   const at = coordsIn(q);
-  if (at) return showResults([{ name: `📍 ${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, detail: "", at }], near, pressed);
+  if (at) {
+    const spot = { name: `📍 ${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, detail: "", at };
+    return pressed ? choose(spot) : showResults([spot], near); // Enter goes straight there.
+  }
   const places = await withProgress(async () => {
     const free = photon(q, near).catch(() => []);
     const tomtom = pressed ? trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
@@ -1195,4 +1198,29 @@ $("reportGlyph").setAttribute("d", GLYPHS.campaign);
 if (!localStorage.getItem("installSeen")) $("install").hidden = false;
 $("installOk").onclick = () => { $("install").hidden = true; localStorage.setItem("installSeen", "1"); };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+// A newer version published since this page loaded: show the Update button. Browsers can otherwise
+// keep the old files for a while after a publish.
+async function checkForUpdate() {
+  const mine = window.ROADWISE?.VERSION;
+  if (!mine) return; // A local copy, not a published one.
+  try {
+    const text = await fetch("config.js", { cache: "no-store" }).then((r) => r.text());
+    const latest = /VERSION:\s*"([^"]+)"/.exec(text)?.[1];
+    if (latest && latest !== mine) $("update").hidden = false;
+  } catch { /* Offline: check again later. */ }
+}
+$("update").onclick = async () => {
+  $("update").textContent = "Updating…";
+  try {
+    for (const r of (await navigator.serviceWorker?.getRegistrations?.()) ?? []) await r.unregister();
+    for (const k of await caches.keys()) await caches.delete(k);
+    await Promise.all(["./", "index.html", "style.css", "app.js", "config.js", "glyphs.js", "sw.js"]
+      .map((f) => fetch(f, { cache: "reload" }).catch(() => {})));
+  } catch { /* Reload anyway. */ }
+  location.reload();
+};
+setTimeout(checkForUpdate, 5000);
+setInterval(checkForUpdate, 30 * 60_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
 startLocation();

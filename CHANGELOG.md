@@ -3,6 +3,13 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.3 — 2026-10-30
+
+- **Browser version**:
+  - Pressing Enter on coordinates goes straight to that spot.
+  - When a new version comes out, a **Tap to update** button appears under the search box and
+    loads it, instead of the browser holding on to the old one for a while.
+
 ## 0.12.2 — 2026-10-30
 
 - **Coordinates in the browser version**: type or paste coordinates like "3.43999, 101.69213" and
