@@ -17,7 +17,6 @@ const INCIDENTS_REFRESH_MS = 3 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
-const ADDRESS_SEARCH_RADIUS_KM = 50;
 const MAX_STOPS = 8;
 const STOP_REACHED_METERS = 60;
 const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
@@ -408,14 +407,11 @@ async function search(q, pressed) {
     return [...all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i), ...(await drivers)];
   });
   if (run !== searchRun) return; // A newer search has taken over.
-  const words = q.toLowerCase().split(/\W+/).filter((w) => w.length > 1);
-  const searchable = places.filter((p) => {
-    if (state.picking || distance(near, p.at) <= ADDRESS_SEARCH_RADIUS_KM * 1000) return true;
-    const text = `${p.name} ${p.detail}`.toLowerCase();
-    return words.length > 0 && words.every((w) => text.includes(w));
-  });
-  searchable.sort((a, b) => distance(near, a.at) - distance(near, b.at));
-  if (pressed && !searchable.length) toast(`No places found within ${ADDRESS_SEARCH_RADIUS_KM} km`);
+  // Names with every word typed come first, then nearest first; list numbers and map pins follow this order.
+  const words = q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
+  const full = (p) => words.length > 0 && words.every((w) => p.name.toLowerCase().includes(w));
+  const searchable = [...places].sort((a, b) => full(b) - full(a) || distance(near, a.at) - distance(near, b.at));
+  if (pressed && !searchable.length) toast("No places found");
   let routable = searchable;
   // Only on a pressed search: while typing this would ask the free routing server on every key.
   if (pressed && !state.picking && searchable.length) {
@@ -429,15 +425,6 @@ async function search(q, pressed) {
     } catch { /* Search remains usable when the routing service is unavailable. */ }
   }
   const visible = routable.slice(0, 10);
-  if (!state.picking && words.length) {
-    const farExact = routable.find((p) => distance(near, p.at) > ADDRESS_SEARCH_RADIUS_KM * 1000 &&
-      words.every((w) => `${p.name} ${p.detail}`.toLowerCase().includes(w)));
-    if (farExact && !visible.includes(farExact)) {
-      if (visible.length === 10) visible.pop();
-      visible.push(farExact);
-      visible.sort((a, b) => distance(near, a.at) - distance(near, b.at));
-    }
-  }
   if (pressed && searchable.length && !visible.length) toast("No driving route found to these places");
   showResults(visible, near, pressed);
 }
@@ -472,11 +459,11 @@ function showResults(places, near, fit = false) {
     if (places.length > 1 && places.slice(1).some((p) => distance(places[0].at, p.at) > 100)) {
       const bounds = new maplibregl.LngLatBounds();
       places.forEach((p) => bounds.extend(p.at));
-      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
+      map.fitBounds(bounds, { padding: { top: innerHeight * 0.45, bottom: innerHeight * 0.25, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
     } else {
       const [lng, lat] = places[0].at;
       const bounds = new maplibregl.LngLatBounds([lng - 0.003, lat - 0.003], [lng + 0.003, lat + 0.003]);
-      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
+      map.fitBounds(bounds, { padding: { top: innerHeight * 0.45, bottom: innerHeight * 0.25, left: 48, right: 96 }, maxZoom: 16, duration: 500 });
     }
   }
   const list = $("results");
