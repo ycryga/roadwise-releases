@@ -3,6 +3,12 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.5 — 2026-10-30
+
+- **Help make arrival times better**: on your first navigated drive, Roadwise asks once whether to
+  share where traffic stops, anonymously, to estimate arrival times better for everyone. Tap
+  **Share** or **Not now**; you can change it any time in More → Share stop times.
+
 ## 0.12.4 — 2026-10-30
 
 - **Add a place from coordinates in one tap**: search coordinates (or drop a pin) and the place card

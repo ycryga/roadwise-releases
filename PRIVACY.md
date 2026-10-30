@@ -33,12 +33,12 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | Feature requests you type and send (only the text, and whether it came from the app or the web) | Roadwise's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Roadwise's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
-| **Only if you switch on "Share stop times"**: where you waited while navigating | Roadwise's database on Supabase | Better arrival times for everyone |
-| **Only if you switch on "Share stop times"**: drives whose arrival time was more than 5 minutes off | Roadwise's database on Supabase | Checking how accurate arrival times are |
+| **Only if you say yes to "Share stop times"**: where you waited while navigating | Roadwise's database on Supabase | Better arrival times for everyone |
+| **Only if you say yes to "Share stop times"**: drives whose arrival time was more than 5 minutes off | Roadwise's database on Supabase | Checking how accurate arrival times are |
 
 ### Shared stop times
 
-Off unless you turn it on (📡 in the list under the search box), and the app asks first. Each wait
+Off until you say yes. The app asks once, when you start your first navigated drive; you can change it any time (📡 in the list under the search box). Each wait
 is sent as:
 
 - the position, rounded to about 11 m;
