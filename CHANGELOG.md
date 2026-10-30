@@ -3,6 +3,20 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.0 — 2026-10-30
+
+- **Search results on the map**: press search (or the 🔍 button) and up to 10 results are
+  numbered, nearest first, with matching numbered pins on the map. Tap a pin or a row to see the
+  place.
+- **A calmer map**: reports and roadworks close together show as one small grey dot until you zoom
+  in. Tap a dot to zoom in and see each one.
+- **Back to your results**: after looking at a place, Back or ✕ brings the numbered list back,
+  so you can try the next one.
+- **Only places you can drive to**: results within 50 km that have a driving route come first; a
+  far-away place still shows when its name matches exactly.
+- **Easier to fill in**: the name box for a missing place now has a "Place name" label, which
+  screen readers read out too.
+
 ## 0.11.0 — 2026-10-30
 
 - **Name any place for later**: ⭐ → **Give it a name** keeps a dropped pin, typed coordinates or
