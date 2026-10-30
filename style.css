@@ -113,6 +113,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #tiles textarea { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--field-line); border-radius: 12px; resize: vertical; background: var(--card); color: var(--text); }
 #tiles .primary { grid-column: 1 / -1; }
 #tiles input[type="text"] { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--field-line); border-radius: 12px; background: var(--card); color: var(--text); }
+.fieldLabel { grid-column: 1 / -1; text-align: left; font-size: 14px; font-weight: 600; }
 #tiles .check { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; text-align: left; font-size: 15px; }
 #tiles .check input { width: 20px; height: 20px; flex: none; }
 .tile.kind { background: var(--chip); color: var(--text); }

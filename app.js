@@ -1023,7 +1023,8 @@ function addMissingPlace(at) {
 function askMissingName(at, kind) {
   const text = Object.assign(document.createElement("p"), { className: "sheetText",
     textContent: "Every Roadwise driver will find it in search. Please only add shops and other places open to the public, not homes." });
-  const name = Object.assign(document.createElement("input"), { type: "text", maxLength: 60, placeholder: "Its name, e.g. Kedai Makan Pak Ali" });
+  const label = Object.assign(document.createElement("label"), { className: "fieldLabel", htmlFor: "missingPlaceName", textContent: "Place name" });
+  const name = Object.assign(document.createElement("input"), { id: "missingPlaceName", type: "text", maxLength: 60, placeholder: "e.g. Kedai Makan Pak Ali" });
   const osmBox = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
   const osm = Object.assign(document.createElement("label"), { className: "check" });
   osm.append(osmBox, " Also tell OpenStreetMap, so it can go on the real map");
@@ -1047,7 +1048,7 @@ function askMissingName(at, kind) {
         body: new URLSearchParams({ lat: at[1], lon: at[0], text: note }) }).catch(() => {});
     }
   };
-  showSheet(`${kind.symbol}  ${kind.label}`, text, name, osm, add);
+  showSheet(`${kind.symbol}  ${kind.label}`, text, label, name, osm, add);
   name.focus();
 }
 
