@@ -1,4 +1,4 @@
-// Lets the browser install Roadwise to the home screen, and opens the app's own files without a
+// Lets the browser install Mana to the home screen, and opens the app's own files without a
 // connection. Always asks the network first, so an update shows on the next launch.
 const CACHE = "roadwise";
 const FILES = ["./", "index.html", "style.css", "app.js", "config.js", "glyphs.js", "manifest.webmanifest", "icon.svg", "icon-192.png"];

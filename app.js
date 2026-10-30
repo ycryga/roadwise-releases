@@ -1,4 +1,4 @@
-// Roadwise on the web: the Android app's core (search, routes with live traffic, turn-by-turn voice,
+// Mana on the web: the Android app's core (search, routes with live traffic, turn-by-turn voice,
 // reports, incidents, the traffic map) for phones that can't or won't install the APK.
 // Positions are [lng, lat] throughout, as MapLibre and GeoJSON have them.
 
@@ -17,6 +17,8 @@ const INCIDENTS_REFRESH_MS = 3 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
+/** "Where to?" in the browser's language: Malay gets "Ke mana?", as the app does. */
+const SEARCH_HINT = /^ms\b/i.test(navigator.language) ? "Ke mana?" : "Where to?";
 const MAX_STOPS = 8;
 const STOP_REACHED_METERS = 60;
 const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
@@ -703,7 +705,7 @@ function startFromHere() {
 
 function stopPicking() {
   state.picking = null;
-  $("search").placeholder = "Where to?";
+  $("search").placeholder = SEARCH_HINT;
   $("search").value = state.destination?.name ?? "";
   $("clear").hidden = !state.destination;
   showResults([]);
@@ -1066,7 +1068,7 @@ async function sendReport(type, sub) {
   }
 }
 
-// --- Supporting Roadwise ---
+// --- Supporting Mana ---
 
 let donations = null;
 const KOFI_URL = /^https:\/\/(www\.)?ko-fi\.com\/[A-Za-z0-9_]+\/?$/;
@@ -1091,9 +1093,9 @@ function showMenu() {
     return b;
   };
   $("results").replaceChildren(
-    row(icon("coffee"), "Support Roadwise", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
+    row(icon("coffee"), "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
     row(icon("pin"), "Add a missing place", "A shop or stall the map doesn't have", startAddingPlace),
-    row(icon("lightbulb"), "Request a feature", "What would make Roadwise better for you?", requestFeature),
+    row(icon("lightbulb"), "Request a feature", "What would make Mana better for you?", requestFeature),
   );
 }
 
@@ -1124,7 +1126,7 @@ function addMissingPlace(at) {
 
 function askMissingName(at, kind) {
   const text = Object.assign(document.createElement("p"), { className: "sheetText",
-    textContent: "Every Roadwise driver will find it in search. Please only add shops and other places open to the public, not homes." });
+    textContent: "Every Mana driver will find it in search. Please only add shops and other places open to the public, not homes." });
   const label = Object.assign(document.createElement("label"), { className: "fieldLabel", htmlFor: "missingPlaceName", textContent: "Place name" });
   const name = Object.assign(document.createElement("input"), { id: "missingPlaceName", type: "text", maxLength: 60, placeholder: "e.g. Kedai Makan Pak Ali" });
   const osmBox = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
@@ -1143,9 +1145,9 @@ function askMissingName(at, kind) {
     }
     $("sheet").hidden = true;
     toast(`${kind.symbol} ${n} added`);
-    // Only a bonus: the place is already in Roadwise. Sent blind, as the notes API's answer isn't needed.
+    // Only a bonus: the place is already in Mana. Sent blind, as the notes API's answer isn't needed.
     if (osmBox.checked) {
-      const note = `Missing place: ${n} (${kind.label.toLowerCase()}). Added by a driver in the Roadwise app; please check before mapping.`;
+      const note = `Missing place: ${n} (${kind.label.toLowerCase()}). Added by a driver in the Mana app; please check before mapping.`;
       fetch("https://api.openstreetmap.org/api/0.6/notes", { method: "POST", mode: "no-cors",
         body: new URLSearchParams({ lat: at[1], lon: at[0], text: note }) }).catch(() => {});
     }
@@ -1163,7 +1165,7 @@ function showSheet(title, ...content) {
 function showSupport() {
   const text = document.createElement("p");
   text.className = "sheetText";
-  text.textContent = `Roadwise is free, with no ads. Live traffic and the servers cost about RM${donations?.goal_rm ?? 300} a month; ` +
+  text.textContent = `Mana is free, with no ads. Live traffic and the servers cost about RM${donations?.goal_rm ?? 300} a month; ` +
     "donations keep it free for everyone. To give with DuitNow, save or screenshot this QR, then in your bank or Touch 'n Go app " +
     "choose Scan → from gallery. Any amount helps. Thank you!";
   const qr = Object.assign(document.createElement("img"), { src: "duitnow.png", alt: "DuitNow QR", className: "qr" });
@@ -1171,11 +1173,11 @@ function showSupport() {
   const links = [["Ko-fi", donations?.kofi_url], ["Buy Me a Coffee", donations?.bmac_url]].filter(([, url]) => url).map(([label, url]) =>
     Object.assign(document.createElement("a"), { className: "primary payLink", href: url, target: "_blank", rel: "noopener", textContent: label }));
   if (links.length) text.textContent += " Or give by card:";
-  showSheet("Support Roadwise", text, ...links, qr);
+  showSheet("Support Mana", text, ...links, qr);
 }
 
 function requestFeature() {
-  const box = Object.assign(document.createElement("textarea"), { rows: 4, maxLength: 500, placeholder: "What would make Roadwise better for you?" });
+  const box = Object.assign(document.createElement("textarea"), { rows: 4, maxLength: 500, placeholder: "What would make Mana better for you?" });
   const send = Object.assign(document.createElement("button"), { className: "primary", textContent: "Send" });
   send.onclick = async () => {
     const text = box.value.trim();
@@ -1200,6 +1202,7 @@ $("reportGlyph").setAttribute("d", GLYPHS.campaign);
 
 if (!localStorage.getItem("installSeen")) $("install").hidden = false;
 $("installOk").onclick = () => { $("install").hidden = true; localStorage.setItem("installSeen", "1"); };
+$("search").placeholder = SEARCH_HINT;
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 // A newer version published since this page loaded: show the Update button. Browsers can otherwise
