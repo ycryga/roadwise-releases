@@ -3,6 +3,12 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.4 — 2026-10-30
+
+- **Add a place from coordinates in one tap**: search coordinates (or drop a pin) and the place card
+  shows **Add this place to the map**. Pick a kind, type its name, and every driver can find it.
+  The same in the browser version.
+
 ## 0.12.3 — 2026-10-30
 
 - **Browser version**:
