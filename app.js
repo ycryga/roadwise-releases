@@ -149,9 +149,9 @@ map.on("load", () => {
   map.addLayer({ id: "reports", type: "symbol", source: "reports",
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
   map.addLayer({ id: "me", type: "circle", source: "me", paint: { "circle-color": "#2F6FED", "circle-radius": 9, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
-  map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 13, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } });
+  map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 17, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
   map.addLayer({ id: "search-result-numbers", type: "symbol", source: "search-results",
-    layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true, "text-ignore-placement": true },
+    layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 14, "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#fff" } });
   setSearchCandidates(shownResults);
   showTraffic(state.traffic);
@@ -419,17 +419,27 @@ function showResults(places, near, fit = false) {
   setSearchCandidates(shownResults);
   const outsideView = fit && places.length && !places.some((p) => map.getBounds().contains(p.at));
   if (places.length && (fit || outsideView)) {
-    if (places.length > 1 && places.slice(1).some((p) => distance(places[0].at, p.at) > 100)) {
+    const nearby = places.filter((p) => distance(places[0].at, p.at) <= 1500);
+    if (nearby.length > 1 && nearby.slice(1).some((p) => distance(nearby[0].at, p.at) > 100)) {
       const bounds = new maplibregl.LngLatBounds();
-      places.forEach((p) => bounds.extend(p.at));
-      map.fitBounds(bounds, { padding: { top: Math.min(320, innerHeight * 0.42), bottom: 120, left: 48, right: 48 }, maxZoom: 15, duration: 500 });
-    } else map.easeTo({ center: places[0].at, zoom: Math.max(map.getZoom(), 15), duration: 500 });
+      nearby.forEach((p) => bounds.extend(p.at));
+      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 48 }, maxZoom: 16, duration: 500 });
+    } else {
+      const [lng, lat] = places[0].at;
+      const bounds = new maplibregl.LngLatBounds([lng - 0.003, lat - 0.003], [lng + 0.003, lat + 0.003]);
+      map.fitBounds(bounds, { padding: { top: Math.min(360, innerHeight * 0.3), bottom: innerHeight * 0.08, left: 48, right: 48 }, maxZoom: 16, duration: 500 });
+    }
   }
   const list = $("results");
+  list.classList.toggle("submitted", fit);
   list.replaceChildren(...places.map((p, i) => {
     const row = document.createElement("button");
     row.className = "row";
     row.innerHTML = `<span class="pin">${icon("pin")}</span><span class="what"><div class="name"></div><div class="detail"></div></span><span class="far"></span>`;
+    if (fit) {
+      row.querySelector(".pin").classList.add("candidate-number");
+      row.querySelector(".pin").textContent = String(i + 1);
+    }
     row.querySelector(".name").textContent = fit ? `${i + 1}. ${p.name}` : p.name;
     row.querySelector(".detail").textContent = p.detail;
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";

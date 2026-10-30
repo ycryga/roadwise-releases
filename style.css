@@ -59,9 +59,11 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
   #progress::after { animation: none; left: 0; width: 100%; opacity: .6; }
 }
 #results { flex-basis: 100%; max-height: 55vh; overflow-y: auto; }
+#results.submitted { max-height: 24vh; }
 #results:not(:empty) { border-top: 1px solid var(--line); margin-top: 4px; padding: 4px 0; }
 .row { display: flex; gap: 12px; align-items: center; width: 100%; padding: 10px 6px; border: 0; background: none; text-align: left; color: var(--text); }
 .row .pin { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--pin-bg); display: grid; place-items: center; }
+.row .pin.candidate-number { background: #2F6FED; color: #fff; font-weight: 700; font-size: 16px; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px #2F6FED; }
 .row .what { flex: 1; min-width: 0; }
 .row .name { font-weight: 600; }
 .row .detail, .row .far { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
