@@ -52,8 +52,17 @@ const REPORT_TYPES = [
 const $ = (id) => document.getElementById(id);
 /** An icon from the sprite in index.html, as markup. */
 const icon = (name) => `<svg class="ico" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+function readSavedPlace(slot) {
+  try {
+    const p = JSON.parse(localStorage.getItem(`mana.${slot}`));
+    return p && typeof p.name === "string" && typeof p.detail === "string" && Array.isArray(p.at) &&
+      p.at.length === 2 && Number.isFinite(p.at[0]) && Number.isFinite(p.at[1]) &&
+      Math.abs(p.at[0]) <= 180 && Math.abs(p.at[1]) <= 90 ? p : null;
+  } catch { return null; }
+}
 const state = {
   here: null, heading: null, speed: 0, speedKmh: null, accuracy: 50,
+  home: readSavedPlace("home"), work: readSavedPlace("work"), savingSlot: null,
   destination: null, routes: [], selected: 0,
   stops: [], origin: null, picking: null, // stops in visiting order; a start other than here (planning only); "stop" | "origin" while searching for one
   nav: null, following: true, wakeLock: null,
@@ -160,7 +169,11 @@ map.on("load", () => {
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "reports", type: "symbol", source: "reports", filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
-  map.addLayer({ id: "me", type: "circle", source: "me", paint: { "circle-color": "#2F6FED", "circle-radius": 9, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+  map.addImage("mana-car", carImage(), { pixelRatio: 2 });
+  map.addLayer({ id: "me", type: "symbol", source: "me", layout: {
+    "icon-image": "mana-car", "icon-size": 0.9, "icon-rotate": ["get", "heading"],
+    "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true,
+  } });
   map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 17, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
   map.addLayer({ id: "search-result-numbers", type: "symbol", source: "search-results",
     layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 14, "text-allow-overlap": true, "text-ignore-placement": true },
@@ -198,6 +211,27 @@ function destPinImage() {
   g.fillStyle = "#EA4335"; g.fill(pin);
   g.strokeStyle = "#FFFFFF"; g.lineWidth = 1.4; g.lineJoin = "round"; g.stroke(pin);
   g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(12, 9, 2.7, 0, 2 * Math.PI); g.fill();
+  return g.getImageData(0, 0, size, size);
+}
+
+/** The same top-down saloon used by Android, facing north before GPS heading rotation. */
+function carImage() {
+  const size = 96, g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
+  g.scale(2, 2);
+  const draw = (d, fill, stroke = null, width = 1) => {
+    const p = new Path2D(d);
+    if (fill) { g.fillStyle = fill; g.fill(p); }
+    if (stroke) { g.strokeStyle = stroke; g.lineWidth = width; g.lineJoin = "round"; g.stroke(p); }
+  };
+  draw("M15.5 16.6 13.4 17.4V19.2h2.1z M32.5 16.6 34.6 17.4V19.2h-2.1z", "#B71C1C", "#fff", .6);
+  draw("M17.3 3.6h13.4q1.8 0 1.8 1.8v37.2q0 1.8-1.8 1.8H17.3q-1.8 0-1.8-1.8V5.4q0-1.8 1.8-1.8z", "#C62828", "#fff", 1.4);
+  draw("M16.2 2.4h15.6v1.9H16.2z M16.2 43.7h15.6v1.9H16.2z", "#CFD3D8");
+  draw("M16.6 4.9h4v2.5h-4z M27.4 4.9h4v2.5h-4z", "#FFF59D");
+  draw("M21.4 5.1h5.2V7h-5.2z", "#3C4043");
+  draw("M21 8.5v7 M27 8.5v7", null, "#A31515", .5);
+  draw("M17.4 16.6h13.2l-1.3 5H18.7z M18.7 21.6h10.6v11.6H18.7z M18.7 33.2h10.6l1.1 4H17.6z", "#1F2A36");
+  draw("M16.5 22l1.6.3v10.2l-1.6.3z M31.5 22l-1.6.3v10.2l1.6.3z", "#1F2A36");
+  draw("M16.4 41.4h3.8v1.8h-3.8z M27.8 41.4h3.8v1.8h-3.8z", "#FF8A65");
   return g.getImageData(0, 0, size, size);
 }
 
@@ -349,7 +383,7 @@ function onLocation() {
     if (u.snapped) shown = u.snapped;
     showNav(u);
   }
-  map.getSource("me")?.setData(fc([pointFeature(shown)]));
+  map.getSource("me")?.setData(fc([pointFeature(shown, { heading: state.heading ?? 0 })]));
   updateTheme();
   if (state.following) {
     map.easeTo({ center: shown, bearing: nav && state.heading != null ? state.heading : map.getBearing(), pitch: nav ? 50 : 0,
@@ -374,10 +408,10 @@ $("search").addEventListener("input", () => {
   }
   $("clear").hidden = !q && !state.destination;
   clearTimeout(searchTimer);
-  if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : showMenu();
+  if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : state.savingSlot ? showMapPickRow() : showMenu();
   searchTimer = setTimeout(() => search(q, false), 350);
 });
-$("search").addEventListener("focus", () => { if (!$("search").value && !state.picking) showMenu(); });
+$("search").addEventListener("focus", () => { if (!$("search").value && !state.picking && !state.savingSlot) showMenu(); });
 $("search").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   submitSearch();
@@ -390,6 +424,7 @@ function submitSearch() {
 }
 $("clear").onclick = () => {
   if (state.picking) return stopPicking();
+  if (state.savingSlot) { state.savingSlot = null; $("search").placeholder = SEARCH_HINT; }
   $("search").value = "";
   $("clear").hidden = true;
   showResults([]);
@@ -543,6 +578,13 @@ function restoreSearchResults() {
 }
 window.addEventListener("popstate", restoreSearchResults);
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
+$("placeSave").onclick = () => {
+  const home = document.createElement("button"); home.className = "plain"; home.textContent = "⌂  Home";
+  const work = document.createElement("button"); work.className = "plain"; work.textContent = "▦  Work";
+  home.onclick = () => { $("sheet").hidden = true; saveHomeWork("home", state.destination); };
+  work.onclick = () => { $("sheet").hidden = true; saveHomeWork("work", state.destination); };
+  showSheet("Save this place", home, work);
+};
 $("placeClose").onclick = () => searchReturn ? history.back() : $("clear").onclick();
 $("placeAdd").onclick = () => addMissingPlace(state.destination.at);
 $("placeFlag").onclick = () => {
@@ -679,6 +721,7 @@ function clearRoute() {
 // --- The trip: where it starts, and its stops in order ---
 
 function choose(place) {
+  if (state.savingSlot) return saveHomeWork(state.savingSlot, place);
   const kind = state.picking;
   if (!kind) return goTo(place);
   stopPicking();
@@ -1124,11 +1167,48 @@ function showMenu() {
     b.onclick = () => { $("search").blur(); showResults([]); onclick(); };
     return b;
   };
+  const savedRow = (slot, label, glyph) => row(icon(glyph), state[slot]?.name || label,
+    state[slot] ? [state[slot].detail, "Tap to navigate"].filter(Boolean).join(" · ") : `Tap to set ${label.toLowerCase()} · search or choose on map`,
+    () => state[slot] ? goTo(state[slot]) : startSaving(slot));
   $("results").replaceChildren(
+    savedRow("home", "Home", "pin"), savedRow("work", "Work", "navigation"),
     row(icon("coffee"), "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
     row(icon("pin"), "Add a missing place", "A shop or stall the map doesn't have", startAddingPlace),
     row(icon("lightbulb"), "Request a feature", "What would make Mana better for you?", requestFeature),
   );
+}
+
+
+function saveHomeWork(slot, place) {
+  if (!slot || !place) return;
+  const saved = { name: place.name, detail: place.detail || "", at: place.at.slice() };
+  try { localStorage.setItem(`mana.${slot}`, JSON.stringify(saved)); }
+  catch { return toast("Couldn't save this place in your browser"); }
+  state[slot] = saved;
+  if (state.savingSlot) {
+    state.savingSlot = null;
+    $("search").placeholder = SEARCH_HINT;
+    $("search").value = "";
+    $("clear").hidden = true;
+    showMenu();
+  }
+  toast(`${slot === "home" ? "Home" : "Work"} saved`);
+}
+function startSaving(slot) {
+  state.savingSlot = slot;
+  $("search").value = "";
+  $("search").placeholder = `Set ${slot === "home" ? "Home" : "Work"}: search or tap the map`;
+  $("clear").hidden = false;
+  showMapPickRow();
+  $("search").focus();
+}
+function showMapPickRow() {
+  const row = document.createElement("button");
+  row.className = "row";
+  row.innerHTML = `<span class="pin">${icon("pin")}</span><span class="what"><div class="name">Choose on map</div><div class="detail">Tap the location to save ${state.savingSlot === "home" ? "Home" : "Work"}</div></span>`;
+  row.onmousedown = (e) => e.preventDefault();
+  row.onclick = () => toast("Tap the map to choose a location");
+  $("results").replaceChildren(row);
 }
 
 // --- Places drivers add ---
@@ -1138,6 +1218,11 @@ function startAddingPlace() {
   toast("Tap the spot on the map");
 }
 map.on("click", (e) => {
+  if (state.savingSlot) {
+    const [lng, lat] = e.lngLat.toArray();
+    saveHomeWork(state.savingSlot, { name: `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`, detail: "Map pin", at: [lng, lat] });
+    return;
+  }
   if (!state.addingPlace) return;
   state.addingPlace = false;
   addMissingPlace(e.lngLat.toArray());

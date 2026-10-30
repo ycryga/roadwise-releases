@@ -60,8 +60,7 @@ next drive starts or the app closes.
 
 [The browser version](https://ycryga.github.io/roadwise-releases/) sends the same requests as the
 app, to the same services, for the features it has (search, routes, live traffic, reports, the
-traffic map). It keeps only whether the traffic map is on and whether you have seen the first tip, in your browser. It doesn't share stop
-times or arrival times.
+traffic map). It stores Home and Work shortcuts, whether the traffic map is on, and whether you have seen the first tip in your browser. Home and Work stay on that browser and aren't sent to Mana or synced to other devices. It doesn't share stop times or arrival times.
 
 ## Location
 
