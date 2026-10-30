@@ -112,6 +112,11 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .qr { grid-column: 1 / -1; width: min(260px, 70vw); justify-self: center; }
 #tiles textarea { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--field-line); border-radius: 12px; resize: vertical; background: var(--card); color: var(--text); }
 #tiles .primary { grid-column: 1 / -1; }
+#tiles input[type="text"] { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--field-line); border-radius: 12px; background: var(--card); color: var(--text); }
+#tiles .check { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; text-align: left; font-size: 15px; }
+#tiles .check input { width: 20px; height: 20px; flex: none; }
+.tile.kind { background: var(--chip); color: var(--text); }
+.tile.kind .emoji { font-size: 28px; }
 .payLink { text-decoration: none; text-align: center; }
 #tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
 .tile { border: 0; border-radius: 16px; padding: 12px 4px; color: #fff; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; }

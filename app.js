@@ -23,6 +23,14 @@ const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
 const ADVANCE_METERS = 25, ARRIVE_METERS = 30, NEAR_METERS = 60, FAR_METERS = 400;
 const OFF_ROUTE_METERS = 50, OFF_ROUTE_UPDATES = 3, THEN_SHOWN_METERS = 400;
 const NEAR_END_METERS = 100, PARKING_SPEED = 3; // m/s, about 11 km/h
+const DRIVER_PLACES_KM = 50;
+
+// Kinds of place drivers can add, as the Android DriverPlaces (and supabase/places.sql).
+const PLACE_KINDS = [
+  ["food", "Food", "🍴"], ["cafe", "Cafe", "☕"], ["shop", "Shop", "🛍️"], ["convenience", "Convenience store", "🏪"],
+  ["petrol", "Petrol station", "⛽"], ["workshop", "Car workshop", "🔧"], ["clinic", "Clinic", "🩺"], ["pharmacy", "Pharmacy", "💊"],
+  ["mosque", "Mosque or surau", "🕌"], ["parking", "Parking", "🅿️"], ["toilet", "Toilet", "🚻"], ["other", "Something else", "📍"],
+].map(([key, label, symbol]) => ({ key, label, symbol }));
 
 const REPORT_TYPES = [
   { key: "police", label: "Police", color: "#2F6FED", icon: "👮", glyph: "local_police", short: "Police", subtypes: [
@@ -49,6 +57,7 @@ const state = {
   reports: [], incidents: [], incidentsAt: 0, incidentsArea: null,
   traffic: localStorage.getItem("traffic") === "1",
   lastSearch: 0,
+  addingPlace: false, // the next tap on the map picks where a missing place is
 };
 
 // --- Geometry ---
@@ -359,8 +368,10 @@ async function search(q, pressed) {
     const free = photon(q, near).catch(() => []);
     const tomtom = pressed ? trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
       .then((o) => o.places.map((p) => ({ name: p.name || p.detail, detail: p.detail, at: [p.lon, p.lat] }))).catch(() => []) : [];
+    const drivers = driverPlaces(q, near);
     const all = [...(await free), ...(await tomtom)];
-    return all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i);
+    // Driver-added places aren't merged away: they're there because the map lacks them.
+    return [...all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i), ...(await drivers)];
   });
   if (run !== searchRun) return; // A newer search has taken over.
   const words = q.toLowerCase().split(/\W+/).filter((w) => w.length > 1);
@@ -368,6 +379,16 @@ async function search(q, pressed) {
   places.sort((a, b) => full(b) - full(a) || distance(near, a.at) - distance(near, b.at));
   if (pressed && !places.length) toast("No places found");
   showResults(places.slice(0, 10), near);
+}
+
+/** Places drivers added that the map doesn't have, whose name contains [q], within DRIVER_PLACES_KM. */
+async function driverPlaces(q, near) {
+  const name = q.replace(/[*%,()\\]/g, " ").trim();
+  if (name.length < 2) return [];
+  const dLat = DRIVER_PLACES_KM / 111, dLng = DRIVER_PLACES_KM / (111 * Math.max(0.1, Math.cos(rad(near[1]))));
+  const box = `lat=gte.${near[1] - dLat}&lat=lte.${near[1] + dLat}&lng=gte.${near[0] - dLng}&lng=lte.${near[0] + dLng}`;
+  const rows = await supabase("GET", `live_driver_places?select=id,name,kind,lat,lng&name=ilike.${encodeURIComponent(`*${name}*`)}&${box}&limit=20`).catch(() => []);
+  return rows.map((r) => ({ name: r.name, detail: `${PLACE_KINDS.find((k) => k.key === r.kind)?.label ?? "Place"} · added by drivers`, at: [r.lng, r.lat], driverId: r.id }));
 }
 
 async function photon(q, near) {
@@ -410,6 +431,7 @@ function goTo(place) {
   map.setPaintProperty("dest", "icon-opacity", 0);
   $("placeName").textContent = place.name;
   $("placeDetail").textContent = [place.detail, state.here && `${shortDistance(distance(state.here, place.at))} away`].filter(Boolean).join("  ·  ");
+  $("placeFlag").hidden = !place.driverId;
   showCard($("placeCard"));
   state.following = false;
   map.easeTo({ center: place.at, zoom: Math.max(map.getZoom(), 15.5), pitch: 0, bearing: 0, duration: 700 });
@@ -417,6 +439,25 @@ function goTo(place) {
 }
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
 $("placeClose").onclick = () => $("clear").onclick();
+$("placeFlag").onclick = () => {
+  const place = state.destination;
+  if (!place?.driverId) return;
+  const text = Object.assign(document.createElement("p"), { className: "sheetText",
+    textContent: "Added by drivers. If it isn't there, or the name is wrong, say so: after a few drivers do, it's taken off search." });
+  const send = Object.assign(document.createElement("button"), { className: "primary", textContent: "Not here" });
+  send.onclick = async () => {
+    send.disabled = true;
+    try {
+      await supabase("POST", "driver_place_flags", { place_id: place.driverId });
+      $("sheet").hidden = true;
+      toast("Thanks, noted");
+    } catch (e) {
+      send.disabled = false;
+      toast(`Couldn't send it: ${e.message}`);
+    }
+  };
+  showSheet(place.name, text, send);
+};
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function showCard(el) {
@@ -949,8 +990,65 @@ function showMenu() {
   };
   $("results").replaceChildren(
     row(icon("coffee"), "Support Roadwise", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
+    row(icon("pin"), "Add a missing place", "A shop or stall the map doesn't have", startAddingPlace),
     row(icon("lightbulb"), "Request a feature", "What would make Roadwise better for you?", requestFeature),
   );
+}
+
+// --- Places drivers add ---
+
+function startAddingPlace() {
+  state.addingPlace = true;
+  toast("Tap the spot on the map");
+}
+map.on("click", (e) => {
+  if (!state.addingPlace) return;
+  state.addingPlace = false;
+  addMissingPlace(e.lngLat.toArray());
+});
+
+/** A place the map doesn't have, at [at], for every driver: what kind, then its name. */
+function addMissingPlace(at) {
+  showSheet("What kind of place?", ...PLACE_KINDS.map((kind) => {
+    const b = document.createElement("button");
+    b.className = "tile kind";
+    b.innerHTML = `<span class="emoji"></span><span></span>`;
+    b.querySelector(".emoji").textContent = kind.symbol;
+    b.querySelector("span:last-child").textContent = kind.label;
+    b.onclick = () => askMissingName(at, kind);
+    return b;
+  }));
+}
+
+function askMissingName(at, kind) {
+  const text = Object.assign(document.createElement("p"), { className: "sheetText",
+    textContent: "Every Roadwise driver will find it in search. Please only add shops and other places open to the public, not homes." });
+  const name = Object.assign(document.createElement("input"), { type: "text", maxLength: 60, placeholder: "Its name, e.g. Kedai Makan Pak Ali" });
+  const osmBox = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
+  const osm = Object.assign(document.createElement("label"), { className: "check" });
+  osm.append(osmBox, " Also tell OpenStreetMap, so it can go on the real map");
+  const add = Object.assign(document.createElement("button"), { className: "primary", textContent: "Add" });
+  add.onclick = async () => {
+    const n = name.value.trim();
+    if (n.length < 2) return toast("Type the place's name");
+    add.disabled = true;
+    try {
+      await supabase("POST", "driver_places", { name: n, kind: kind.key, lat: at[1], lng: at[0] });
+    } catch (e) {
+      add.disabled = false;
+      return toast(`Couldn't add it: ${e.message}`);
+    }
+    $("sheet").hidden = true;
+    toast(`${kind.symbol} ${n} added`);
+    // Only a bonus: the place is already in Roadwise. Sent blind, as the notes API's answer isn't needed.
+    if (osmBox.checked) {
+      const note = `Missing place: ${n} (${kind.label.toLowerCase()}). Added by a driver in the Roadwise app; please check before mapping.`;
+      fetch("https://api.openstreetmap.org/api/0.6/notes", { method: "POST", mode: "no-cors",
+        body: new URLSearchParams({ lat: at[1], lon: at[0], text: note }) }).catch(() => {});
+    }
+  };
+  showSheet(`${kind.symbol}  ${kind.label}`, text, name, osm, add);
+  name.focus();
 }
 
 function showSheet(title, ...content) {
