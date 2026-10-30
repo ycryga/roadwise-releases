@@ -3,6 +3,10 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.13.1 — 2026-10-30
+
+- **Neater icon**: the m now sits in the middle of the app icon, with the red dot in the corner.
+
 ## 0.13.0 — 2026-10-30
 
 - **Roadwise is now Mana**: *mana* is Malay for "where". It has a new logo and app icon: a rounded
