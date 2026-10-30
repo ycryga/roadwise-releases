@@ -16,6 +16,7 @@ const INCIDENTS_REFRESH_MS = 3 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
+const ADDRESS_SEARCH_RADIUS_KM = 50;
 const MAX_STOPS = 8;
 const STOP_REACHED_METERS = 60;
 const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
@@ -121,7 +122,7 @@ async function withProgress(work) {
 // --- Map ---
 
 const map = new maplibregl.Map({ container: "map", style: STYLE_URL, center: KL, zoom: 11, attributionControl: { compact: true } });
-let shownResults = [];
+let shownResults = [], shownResultsNear = null, searchReturn = null;
 const empty = { type: "FeatureCollection", features: [] };
 const fc = (features) => ({ type: "FeatureCollection", features });
 const lineFeature = (coords, props = {}) => ({ type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: props });
@@ -355,6 +356,10 @@ $("locate").onclick = () => {
 let searchTimer, searchRun = 0;
 $("search").addEventListener("input", () => {
   const q = $("search").value.trim();
+  if (searchReturn && q !== searchReturn.query) {
+    searchReturn = null;
+    history.replaceState(null, "", location.href);
+  }
   $("clear").hidden = !q && !state.destination;
   clearTimeout(searchTimer);
   if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : showMenu();
@@ -394,9 +399,25 @@ async function search(q, pressed) {
     return [...all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i), ...(await drivers)];
   });
   if (run !== searchRun) return; // A newer search has taken over.
-  places.sort((a, b) => distance(near, a.at) - distance(near, b.at));
-  if (pressed && !places.length) toast("No places found");
-  showResults(places.slice(0, 10), near, pressed);
+  const words = q.toLowerCase().split(/\W+/).filter((w) => w.length > 1);
+  const searchable = places.filter((p) => {
+    if (state.picking || distance(near, p.at) <= ADDRESS_SEARCH_RADIUS_KM * 1000) return true;
+    const text = `${p.name} ${p.detail}`.toLowerCase();
+    return words.length > 0 && words.every((w) => text.includes(w));
+  });
+  searchable.sort((a, b) => distance(near, a.at) - distance(near, b.at));
+  if (pressed && !searchable.length) toast(`No places found within ${ADDRESS_SEARCH_RADIUS_KM} km`);
+  const visible = searchable.slice(0, 10);
+  if (!state.picking && words.length) {
+    const farExact = searchable.find((p) => distance(near, p.at) > ADDRESS_SEARCH_RADIUS_KM * 1000 &&
+      words.every((w) => `${p.name} ${p.detail}`.toLowerCase().includes(w)));
+    if (farExact && !visible.includes(farExact)) {
+      if (visible.length === 10) visible.pop();
+      visible.push(farExact);
+      visible.sort((a, b) => distance(near, a.at) - distance(near, b.at));
+    }
+  }
+  showResults(visible, near, pressed);
 }
 
 /** Places drivers added that the map doesn't have, whose name contains [q], within DRIVER_PLACES_KM. */
@@ -422,6 +443,7 @@ async function photon(q, near) {
 
 function showResults(places, near, fit = false) {
   shownResults = fit ? places : [];
+  shownResultsNear = fit ? near : null;
   setSearchCandidates(shownResults);
   const outsideView = fit && places.length && !places.some((p) => map.getBounds().contains(p.at));
   if (places.length && (fit || outsideView)) {
@@ -461,6 +483,9 @@ function setSearchCandidates(places) {
 
 /** A picked place: show where it is first; routes come with Directions. */
 function goTo(place) {
+  searchReturn = shownResults.length && $("results").classList.contains("submitted")
+    ? { query: $("search").value, places: shownResults.slice(), near: shownResultsNear } : null;
+  if (searchReturn) history.pushState({ roadwiseSearchResult: true }, "", location.href);
   showResults([]);
   $("search").value = place.name;
   $("search").blur();
@@ -478,8 +503,18 @@ function goTo(place) {
   map.easeTo({ center: place.at, zoom: Math.max(map.getZoom(), 15.5), pitch: 0, bearing: 0, duration: 700 });
   setTimeout(dropPin, reducedMotion() ? 0 : 720); // Once the map has arrived.
 }
+function restoreSearchResults() {
+  if (!searchReturn) return;
+  const saved = searchReturn;
+  searchReturn = null;
+  clearRoute();
+  $("search").value = saved.query;
+  $("clear").hidden = false;
+  showResults(saved.places, saved.near, true);
+}
+window.addEventListener("popstate", restoreSearchResults);
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
-$("placeClose").onclick = () => $("clear").onclick();
+$("placeClose").onclick = () => searchReturn ? history.back() : $("clear").onclick();
 $("placeFlag").onclick = () => {
   const place = state.destination;
   if (!place?.driverId) return;
