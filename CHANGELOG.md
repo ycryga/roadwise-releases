@@ -3,6 +3,12 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.6 — 2026-10-30
+
+- **Fixed**: your position could jump somewhere else for a second and come back. A rough location
+  from Wi-Fi or phone towers was mixed in with GPS; now it's only used when GPS has gone quiet,
+  indoors or in a tunnel.
+
 ## 0.12.5 — 2026-10-30
 
 - **Help make arrival times better**: on your first navigated drive, Roadwise asks once whether to
