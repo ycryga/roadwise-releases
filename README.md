@@ -42,6 +42,8 @@
 - Paste a link or share a location from WhatsApp or Google Maps
 - Petrol, food and toilets along your route, each showing how much time it adds
 - Routing maps you can download, so directions work without signal
+- Give any place a name and keep it, even a dropped pin or typed coordinates
+- Add a shop, stall or workshop the map is missing, and every driver finds it in search
 
 ## Install on Android
 

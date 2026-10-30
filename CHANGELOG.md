@@ -3,6 +3,24 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.11.0 — 2026-10-30
+
+- **Name any place for later**: ⭐ → **Give it a name** keeps a dropped pin, typed coordinates or
+  any place in a new **Saved** list. Long-press a saved place to rename or remove it.
+- **Add places the map is missing, for everyone**: More → **Add a place missing from the map** (or
+  ⭐ → **Add to the map for everyone** on a dropped pin), pick a kind and type a name. Every driver
+  then finds it in search, by name or under its kind. You can also send it to OpenStreetMap so it
+  goes on the real map. If a place isn't there, long-press it in search and say **Not here**.
+- **Quieter when speeding**: "Speed limit 90" is no longer spoken when you go over, unless you turn
+  on More → **Say when over the speed limit**. The red speed bubble works as before.
+- **Browser version**: add a missing place too, and find places other drivers added.
+
+## 0.10.4 — 2026-10-29
+
+- **Fixed**: sharing stop times could stop for good if the server once turned a batch away; the
+  phone now drops that batch and carries on.
+- **Steadier map**: updated the map library (MapLibre 13.7.1), which fixes several rare crashes.
+
 ## 0.10.3 — 2026-10-29
 
 - **Fixed**: after planning a trip from another place, there was no clear way back to your own

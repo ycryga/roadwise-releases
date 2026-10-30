@@ -28,6 +28,8 @@ To work, Roadwise asks these services for things. Each gets only what that reque
 | What you search for when you press search, with your rough location | Roadwise's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
 | A short map link you share to Roadwise (maps.app.goo.gl) | Google | Finding out where the link points |
 | Reports you choose to send (kind and position) and "still there?" answers | Roadwise's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
+| Places you add for everyone (name, kind and position) and "not here" answers | Roadwise's database on Supabase | Other drivers finding them in search; they're public and kept |
+| **Only if you tick it when adding a place**: its name, kind and position | [OpenStreetMap](https://www.openstreetmap.org) as an anonymous public note | A mapper checking it and adding it to the map |
 | Feature requests you type and send (only the text, and whether it came from the app or the web) | Roadwise's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Roadwise's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Roadwise's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
