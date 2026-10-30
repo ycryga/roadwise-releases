@@ -397,6 +397,9 @@ async function search(q, pressed) {
   const run = ++searchRun;
   if (pressed) state.following = false;
   const near = state.here ?? map.getCenter().toArray();
+  // Typed or pasted coordinates ("3.43999, 101.69213"): that exact spot, as in the app.
+  const at = coordsIn(q);
+  if (at) return showResults([{ name: `📍 ${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, detail: "", at }], near, pressed);
   const places = await withProgress(async () => {
     const free = photon(q, near).catch(() => []);
     const tomtom = pressed ? trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
@@ -437,6 +440,14 @@ async function driverPlaces(q, near) {
   const box = `lat=gte.${near[1] - dLat}&lat=lte.${near[1] + dLat}&lng=gte.${near[0] - dLng}&lng=lte.${near[0] + dLng}`;
   const rows = await supabase("GET", `live_driver_places?select=id,name,kind,lat,lng&name=ilike.${encodeURIComponent(`*${name}*`)}&${box}&limit=20`).catch(() => []);
   return rows.map((r) => ({ name: r.name, detail: `${PLACE_KINDS.find((k) => k.key === r.kind)?.label ?? "Place"} · added by drivers`, at: [r.lng, r.lat], driverId: r.id }));
+}
+
+/** [lng, lat] from text like "3.4399898, 101.6921296" (the app's SharedLocation pattern), or null. */
+function coordsIn(text) {
+  const m = /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/.exec(text);
+  if (!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng) ? [lng, lat] : null;
 }
 
 async function photon(q, near) {

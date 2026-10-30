@@ -3,6 +3,11 @@
 What changed in each Roadwise release. The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.12.2 — 2026-10-30
+
+- **Coordinates in the browser version**: type or paste coordinates like "3.43999, 101.69213" and
+  the search goes to that exact spot, as it already did in the app, instead of nearby addresses.
+
 ## 0.12.1 — 2026-10-30
 
 - **Search finds far-away places again**: 0.12.0 only showed results within 50 km, which hid
