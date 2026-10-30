@@ -407,9 +407,20 @@ async function search(q, pressed) {
   });
   searchable.sort((a, b) => distance(near, a.at) - distance(near, b.at));
   if (pressed && !searchable.length) toast(`No places found within ${ADDRESS_SEARCH_RADIUS_KM} km`);
-  const visible = searchable.slice(0, 10);
+  let routable = searchable;
+  if (!state.picking && searchable.length) {
+    try {
+      const candidates = searchable.slice(0, 25);
+      const coords = [near, ...candidates.map((p) => p.at)];
+      const table = await fetch(`${OSRM_TABLE}${coords.map((p) => p.join(",")).join(";")}?sources=0&destinations=${candidates.map((_, i) => i + 1).join(";")}`)
+        .then((r) => r.json());
+      if (run !== searchRun) return;
+      if (table.code === "Ok") routable = candidates.filter((_, i) => table.durations?.[0]?.[i] != null);
+    } catch { /* Search remains usable when the routing service is unavailable. */ }
+  }
+  const visible = routable.slice(0, 10);
   if (!state.picking && words.length) {
-    const farExact = searchable.find((p) => distance(near, p.at) > ADDRESS_SEARCH_RADIUS_KM * 1000 &&
+    const farExact = routable.find((p) => distance(near, p.at) > ADDRESS_SEARCH_RADIUS_KM * 1000 &&
       words.every((w) => `${p.name} ${p.detail}`.toLowerCase().includes(w)));
     if (farExact && !visible.includes(farExact)) {
       if (visible.length === 10) visible.pop();
@@ -417,6 +428,7 @@ async function search(q, pressed) {
       visible.sort((a, b) => distance(near, a.at) - distance(near, b.at));
     }
   }
+  if (pressed && searchable.length && !visible.length) toast("No driving route found to these places");
   showResults(visible, near, pressed);
 }
 
