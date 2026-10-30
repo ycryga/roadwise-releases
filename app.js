@@ -121,6 +121,7 @@ async function withProgress(work) {
 // --- Map ---
 
 const map = new maplibregl.Map({ container: "map", style: STYLE_URL, center: KL, zoom: 11, attributionControl: { compact: true } });
+let shownResults = [];
 const empty = { type: "FeatureCollection", features: [] };
 const fc = (features) => ({ type: "FeatureCollection", features });
 const lineFeature = (coords, props = {}) => ({ type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: props });
@@ -129,7 +130,7 @@ const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "P
 map.on("load", () => {
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
-  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty });
+  for (const s of ["alts", "route", "slow", "dest", "stops", "me", "reports", "incidents", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": "#9AA0A6", "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -148,6 +149,11 @@ map.on("load", () => {
   map.addLayer({ id: "reports", type: "symbol", source: "reports",
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
   map.addLayer({ id: "me", type: "circle", source: "me", paint: { "circle-color": "#2F6FED", "circle-radius": 9, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+  map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 13, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } });
+  map.addLayer({ id: "search-result-numbers", type: "symbol", source: "search-results",
+    layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true, "text-ignore-placement": true },
+    paint: { "text-color": "#fff" } });
+  setSearchCandidates(shownResults);
   showTraffic(state.traffic);
   refreshReports();
   setInterval(refreshReports, REPORTS_REFRESH_MS);
@@ -165,6 +171,12 @@ map.on("click", "incidents", (e) => {
   const inc = state.incidents[e.features[0].properties.i];
   if (inc) toast(`${inc.text || inc.spoken}${inc.delay >= 60 ? ` · +${formatDuration(inc.delay)}` : ""}`);
 });
+map.on("click", "search-result-pins", (e) => {
+  const place = shownResults[Number(e.features[0].properties.i)];
+  if (place) choose(place);
+});
+map.on("mouseenter", "search-result-pins", () => { map.getCanvas().style.cursor = "pointer"; });
+map.on("mouseleave", "search-result-pins", () => { map.getCanvas().style.cursor = ""; });
 
 /** The destination pin (as the app's ic_dest_pin): red, white rim and centre, 40px. */
 function destPinImage() {
@@ -378,7 +390,7 @@ async function search(q, pressed) {
   const full = (p) => words.every((w) => p.name.toLowerCase().includes(w));
   places.sort((a, b) => full(b) - full(a) || distance(near, a.at) - distance(near, b.at));
   if (pressed && !places.length) toast("No places found");
-  showResults(places.slice(0, 10), near);
+  showResults(places.slice(0, 10), near, pressed);
 }
 
 /** Places drivers added that the map doesn't have, whose name contains [q], within DRIVER_PLACES_KM. */
@@ -402,18 +414,32 @@ async function photon(q, near) {
   });
 }
 
-function showResults(places, near) {
+function showResults(places, near, fit = false) {
+  shownResults = fit ? places : [];
+  setSearchCandidates(shownResults);
+  const outsideView = fit && places.length && !places.some((p) => map.getBounds().contains(p.at));
+  if (places.length && (fit || outsideView)) {
+    if (places.length > 1 && places.slice(1).some((p) => distance(places[0].at, p.at) > 100)) {
+      const bounds = new maplibregl.LngLatBounds();
+      places.forEach((p) => bounds.extend(p.at));
+      map.fitBounds(bounds, { padding: { top: Math.min(320, innerHeight * 0.42), bottom: 120, left: 48, right: 48 }, maxZoom: 15, duration: 500 });
+    } else map.easeTo({ center: places[0].at, zoom: Math.max(map.getZoom(), 15), duration: 500 });
+  }
   const list = $("results");
-  list.replaceChildren(...places.map((p) => {
+  list.replaceChildren(...places.map((p, i) => {
     const row = document.createElement("button");
     row.className = "row";
     row.innerHTML = `<span class="pin">${icon("pin")}</span><span class="what"><div class="name"></div><div class="detail"></div></span><span class="far"></span>`;
-    row.querySelector(".name").textContent = p.name;
+    row.querySelector(".name").textContent = fit ? `${i + 1}. ${p.name}` : p.name;
     row.querySelector(".detail").textContent = p.detail;
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";
     row.onclick = () => choose(p);
     return row;
   }));
+}
+
+function setSearchCandidates(places) {
+  map.getSource("search-results")?.setData(fc(places.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
 }
 
 // --- Routes ---
