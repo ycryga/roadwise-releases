@@ -521,6 +521,8 @@ function goTo(place) {
   $("placeName").textContent = place.name;
   $("placeDetail").textContent = [place.detail, state.here && `${shortDistance(distance(state.here, place.at))} away`].filter(Boolean).join("  ·  ");
   $("placeFlag").hidden = !place.driverId;
+  // Coordinates and map taps are named "📍 …": usually a spot the map has nothing for.
+  $("placeAdd").hidden = !!place.driverId || !place.name.startsWith("📍");
   showCard($("placeCard"));
   state.following = false;
   map.easeTo({ center: place.at, zoom: Math.max(map.getZoom(), 15.5), pitch: 0, bearing: 0, duration: 700 });
@@ -538,6 +540,7 @@ function restoreSearchResults() {
 window.addEventListener("popstate", restoreSearchResults);
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
 $("placeClose").onclick = () => searchReturn ? history.back() : $("clear").onclick();
+$("placeAdd").onclick = () => addMissingPlace(state.destination.at);
 $("placeFlag").onclick = () => {
   const place = state.destination;
   if (!place?.driverId) return;
