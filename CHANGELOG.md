@@ -3,6 +3,15 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.17.3 — 2026-11-01
+
+- **Directions in the notification**: while you drive, the notification shows the next turn, how far
+  it is and when you'll arrive, stays at the top and open, and updates silently. On Android 16 and
+  newer the distance to the next turn also shows next to the clock.
+- **End navigation** button on the notification.
+- **Exit Mana?**: pressing Back with nothing left to close now asks first, and **Exit** really closes
+  Mana instead of leaving it running in the background. While driving it says navigation will stop.
+
 ## 0.17.2 — 2026-10-31
 
 - **Report a bug or idea**: the Menu's **Request a feature** is now **Report a bug or idea**, for
