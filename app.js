@@ -27,27 +27,38 @@ const ADVANCE_METERS = 25, ARRIVE_METERS = 30, NEAR_METERS = 60, FAR_METERS = 40
 const OFF_ROUTE_METERS = 50, OFF_ROUTE_UPDATES = 3, THEN_SHOWN_METERS = 400;
 const NEAR_END_METERS = 100, PARKING_SPEED = 3; // m/s, about 11 km/h
 const DRIVER_PLACES_KM = 50;
+/** While driving the car sits this far down the screen, with the road ahead above it (as the app). */
+const CAR_Y = 0.72;
+/** Only re-zoom when the speed has moved the zoom this much, so it doesn't pump at every fix. */
+const SPEED_ZOOM_STEP = 0.25;
+/** The driving zoom for a speed, as the app: 17 up to 50 km/h, 15.8 at 80, 14.6 from 110. */
+const speedZoom = (kmh) => 17 - (Math.min(110, Math.max(50, kmh)) - 50) * 0.04;
+const TURN_ARROW_BEFORE_M = 30, TURN_ARROW_AFTER_M = 20;
+// Kinds of stop offered as tiles while driving, as the app's Places.stopShortcuts.
+const STOP_KINDS = [["petrol", "Petrol station", "fuel"], ["food", "Food", "food"], ["toilet", "Toilet", "toilet"],
+  ["rest area", "Rest area", "rest-area"], ["convenience store", "Convenience store", "store"], ["mosque", "Mosque", "mosque"]];
+const NEUTRAL_TILE = "#80868B";
 
 // Kinds of place drivers can add, as the Android DriverPlaces (and supabase/places.sql).
 const PLACE_KINDS = [
-  ["food", "Food", "🍴"], ["cafe", "Cafe", "☕"], ["shop", "Shop", "🛍️"], ["convenience", "Convenience store", "🏪"],
-  ["petrol", "Petrol station", "⛽"], ["workshop", "Car workshop", "🔧"], ["clinic", "Clinic", "🩺"], ["pharmacy", "Pharmacy", "💊"],
-  ["mosque", "Mosque or surau", "🕌"], ["parking", "Parking", "🅿️"], ["toilet", "Toilet", "🚻"], ["other", "Something else", "📍"],
-].map(([key, label, symbol]) => ({ key, label, symbol }));
+  ["food", "Food"], ["cafe", "Cafe"], ["shop", "Shop"], ["convenience", "Convenience store"],
+  ["petrol", "Petrol station"], ["workshop", "Car workshop"], ["clinic", "Clinic"], ["pharmacy", "Pharmacy"],
+  ["mosque", "Mosque or surau"], ["parking", "Parking"], ["toilet", "Toilet"], ["other", "Something else"],
+].map(([key, label]) => ({ key, label }));
 
 const REPORT_TYPES = [
-  { key: "police", label: "Police", color: "#2F6FED", icon: "👮", glyph: "local_police", short: "Police", subtypes: [
-    ["visible", "Police", "👮", "Police", "local_police"], ["hidden", "Hidden police", "🕵️", "Hidden", "visibility_off"], ["mobile_camera", "Mobile speed camera", "📸", "Camera", "photo_camera"]] },
-  { key: "accident", label: "Accident", color: "#D93025", icon: "💥", glyph: "car_crash", short: "Crash", subtypes: [
-    ["minor", "Minor accident", "🚗", "Minor", "minor_crash"], ["major", "Serious accident", "🚑", "Serious", "emergency"]] },
-  { key: "traffic", label: "Traffic jam", color: "#9334E6", icon: "🚗", glyph: "traffic_jam", short: "Traffic", subtypes: [
-    ["slow", "Slow traffic", "🐢", "Slow", "speed"], ["heavy", "Heavy traffic", "🚙", "Heavy", "traffic_jam"], ["standstill", "Traffic at a standstill", "🛑", "Stopped", "traffic_jam"]] },
-  { key: "hazard", label: "Hazard", color: "#F29900", icon: "⚠️", glyph: "warning", short: "Hazard", subtypes: [
-    ["pothole", "Pothole", "🕳️", "Pothole", "tire_repair"], ["object", "Object on the road", "📦", "Object", "inventory_2"], ["stopped_vehicle", "Stopped vehicle", "🚘", "Car", "car_repair"],
-    ["animal", "Animal on the road", "🐄", "Animal", "pets"], ["signal_out", "Traffic lights out", "🚦", "Lights", "traffic"], ["roadworks", "Roadworks", "🚧", "Roadworks", "construction"],
-    ["flood", "Flooding", "🌊", "Flood", "flood"], ["slippery", "Slippery road", "💧", "Slippery", "water_drop"], ["low_visibility", "Poor visibility", "🌫️", "Fog", "foggy"]] },
-  { key: "closure", label: "Road closed", color: "#3C4043", icon: "⛔", glyph: "block", short: "Closed", subtypes: [] },
-].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, icon, short, glyph]) => ({ key, title, icon, short, glyph })) }));
+  { key: "police", label: "Police", color: "#2457E6", glyph: "local_police", short: "Police", subtypes: [
+    ["visible", "Police", "Police", "local_police"], ["hidden", "Hidden police", "Hidden", "visibility_off"], ["mobile_camera", "Mobile speed camera", "Camera", "photo_camera"]] },
+  { key: "accident", label: "Accident", color: "#CE1126", glyph: "car_crash", short: "Crash", subtypes: [
+    ["minor", "Minor accident", "Minor", "minor_crash"], ["major", "Serious accident", "Serious", "emergency"]] },
+  { key: "traffic", label: "Traffic jam", color: "#9334E6", glyph: "traffic_jam", short: "Traffic", subtypes: [
+    ["slow", "Slow traffic", "Slow", "speed"], ["heavy", "Heavy traffic", "Heavy", "traffic_jam"], ["standstill", "Traffic at a standstill", "Stopped", "traffic_jam"]] },
+  { key: "hazard", label: "Hazard", color: "#F29900", glyph: "warning", short: "Hazard", subtypes: [
+    ["pothole", "Pothole", "Pothole", "tire_repair"], ["object", "Object on the road", "Object", "inventory_2"], ["stopped_vehicle", "Stopped vehicle", "Car", "car_repair"],
+    ["animal", "Animal on the road", "Animal", "pets"], ["signal_out", "Traffic lights out", "Lights", "traffic"], ["roadworks", "Roadworks", "Roadworks", "construction"],
+    ["flood", "Flooding", "Flood", "flood"], ["slippery", "Slippery road", "Slippery", "water_drop"], ["low_visibility", "Poor visibility", "Fog", "foggy"]] },
+  { key: "closure", label: "Road closed", color: "#5F6368", glyph: "block", short: "Closed", subtypes: [] },
+].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, short, glyph]) => ({ key, title, short, glyph })) }));
 
 const $ = (id) => document.getElementById(id);
 /** An icon from the sprite in index.html, as markup. */
@@ -110,6 +121,8 @@ function formatDuration(seconds) {
 }
 const clock = (seconds) => new Date(Date.now() + seconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 function shortDistance(m) { return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`; }
+/** "7.7 km · No tolls · traffic +9 min", each number kept on the same line as its unit (as the app's joinWhole). */
+const joinWhole = (parts) => parts.filter(Boolean).map((p) => p.replace(/(\d) /g, "$1\u00A0")).join("  ·  ");
 function spokenDistance(m) {
   if (m >= 1000) return `${(m / 1000).toFixed(1)} kilometers`;
   return m >= 100 ? `${Math.round(m / 50) * 50} meters` : `${Math.round(m / 10) * 10} meters`;
@@ -140,41 +153,50 @@ const lineFeature = (coords, props = {}) => ({ type: "Feature", geometry: { type
 const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "Point", coordinates: p }, properties: props });
 
 map.on("load", () => {
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim(); // Named colours in style.css.
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
   for (const s of ["alts", "route", "driven", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
-  map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": "#9AA0A6", "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": "#9AA0A6", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": "#1A4DB8", "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#2F6FED", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": css("--mana-route-driven"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": css("--mana-route-casing"), "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": css("--mana-route"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
   // The destination: a pin standing on the spot, and the ring it sends out when it drops (hidden at rest).
-  map.addLayer({ id: "stops", type: "circle", source: "stops", paint: { "circle-color": "#fff", "circle-radius": 11, "circle-stroke-color": "#1A4DB8", "circle-stroke-width": 3 } });
+  map.addLayer({ id: "stops", type: "circle", source: "stops", paint: { "circle-color": "#fff", "circle-radius": 11, "circle-stroke-color": css("--mana-via"), "circle-stroke-width": 3 } });
   map.addLayer({ id: "stop-numbers", type: "symbol", source: "stops",
     layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true },
-    paint: { "text-color": "#1A4DB8" } });
-  map.addLayer({ id: "dest-ring", type: "circle", source: "dest", paint: { "circle-color": "#EA4335", "circle-radius": 0, "circle-opacity": 0, "circle-pitch-alignment": "map" } });
+    paint: { "text-color": css("--mana-via") } });
+  map.addLayer({ id: "dest-ring", type: "circle", source: "dest", paint: { "circle-color": css("--mana-destination"), "circle-radius": 0, "circle-opacity": 0, "circle-pitch-alignment": "map" } });
   map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
   map.addLayer({ id: "dest", type: "symbol", source: "dest",
     layout: { "icon-image": "dest-pin", "icon-anchor": "bottom", "icon-allow-overlap": true, "icon-ignore-placement": true } });
   for (const [s, minzoom] of [["incidents", INCIDENTS_MIN_ZOOM], ["reports", 0]]) {
     // A small plain grey dot, no number, so it never looks like a numbered search result.
     map.addLayer({ id: `${s}-clusters`, type: "circle", source: s, minzoom, filter: ["has", "point_count"],
-      paint: { "circle-color": "#5F6368", "circle-opacity": 0.75, "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+      paint: { "circle-color": css("--mana-cluster"), "circle-opacity": 0.75, "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
     map.on("click", `${s}-clusters`, (e) => map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom() + 2, CLUSTER_MAX_ZOOM + 1) }));
   }
   map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM, filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "reports", type: "symbol", source: "reports", filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
+  // While driving: one white arrow at the next turn (see drawTurnArrow).
+  map.addSource("turn", { type: "geojson", data: empty });
+  map.addLayer({ id: "turn-line", type: "line", source: "turn", filter: ["==", ["geometry-type"], "LineString"],
+    paint: { "line-color": "#fff", "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addImage("turn-head", turnHeadImage(), { pixelRatio: 2 });
+  map.addLayer({ id: "turn-head", type: "symbol", source: "turn", filter: ["==", ["geometry-type"], "Point"],
+    layout: { "icon-image": "turn-head", "icon-rotate": ["get", "bearing"], "icon-rotation-alignment": "map", "icon-pitch-alignment": "map",
+      "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addImage("mana-car", carImage(), { pixelRatio: 2 });
   map.addLayer({ id: "me", type: "symbol", source: "me", layout: {
     "icon-image": "mana-car", "icon-size": 0.9, "icon-rotate": ["get", "heading"],
     "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true,
   } });
-  map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": "#2F6FED", "circle-radius": 17, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
+  map.addLayer({ id: "search-result-pins", type: "circle", source: "search-results", paint: { "circle-color": css("--mana-accent"), "circle-radius": 17, "circle-stroke-color": "#fff", "circle-stroke-width": 3 } });
   map.addLayer({ id: "search-result-numbers", type: "symbol", source: "search-results",
     layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 14, "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#fff" } });
@@ -208,10 +230,54 @@ function destPinImage() {
   const size = 80, g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
   g.scale(size / 24, size / 24);
   const pin = new Path2D("M12,1.9C8.07,1.9 4.9,5.07 4.9,9c0,5.3 7.1,13.1 7.1,13.1s7.1,-7.8 7.1,-13.1c0,-3.93 -3.17,-7.1 -7.1,-7.1z");
-  g.fillStyle = "#EA4335"; g.fill(pin);
+  g.fillStyle = "#CE1126"; g.fill(pin); // --mana-destination
   g.strokeStyle = "#FFFFFF"; g.lineWidth = 1.4; g.lineJoin = "round"; g.stroke(pin);
   g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(12, 9, 2.7, 0, 2 * Math.PI); g.fill();
   return g.getImageData(0, 0, size, size);
+}
+
+/** The head of the turn arrow (the app's ic_turn_arrowhead): white with a navy edge, pointing up. */
+function turnHeadImage() {
+  const size = 52, g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
+  g.scale(size / 24, size / 24);
+  const head = new Path2D("M12,2 L21,20 L12,15.5 L3,20 Z");
+  g.fillStyle = "#FFFFFF"; g.fill(head);
+  g.strokeStyle = "#12358F"; g.lineWidth = 1.5; g.lineJoin = "round"; g.stroke(head);
+  return g.getImageData(0, 0, size, size);
+}
+
+/**
+ * The stretch of [line] from [before] metres ahead of the turn at [at] to [after] metres past it, as the
+ * app's turnArrowLine: the one arrow on the route while driving.
+ */
+function turnArrowLine(line, at, before, after) {
+  if (!line.length) return [];
+  let i = 0;
+  line.forEach((p, k) => { if (distance(p, at) < distance(line[i], at)) i = k; });
+  const walk = (step, meters) => {
+    const out = [];
+    let left = meters, k = i;
+    while (line[k + step]) {
+      const a = line[k], b = line[k + step], d = distance(a, b);
+      if (d >= left) { const f = left / d; out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); break; }
+      out.push(b); left -= d; k += step;
+    }
+    return out;
+  };
+  return [...walk(-1, before).reverse(), line[i], ...walk(1, after)];
+}
+
+/** One white arrow at [step]'s turn; none for going straight on, departing or arriving, or with no step. */
+function drawTurnArrow(step) {
+  const r = state.nav?.route;
+  const turns = step && r && !["depart", "arrive"].includes(step.type) && step.modifier !== "straight";
+  const line = turns ? turnArrowLine(r.points, step.at, TURN_ARROW_BEFORE_M, TURN_ARROW_AFTER_M) : [];
+  map.getSource("turn")?.setData(line.length < 2 ? empty : fc([lineFeature(line), pointFeature(line.at(-1), { bearing: bearing(line.at(-2), line.at(-1)) })]));
+}
+
+/** While driving the map shows only what matters on the road: shop, park and other place icons go. */
+function showPlaceIcons(on) {
+  for (const l of map.getStyle()?.layers ?? []) if (l["source-layer"] === "poi") map.setLayoutProperty(l.id, "visibility", on ? "visible" : "none");
 }
 
 /** The same top-down saloon used by Android, facing north before GPS heading rotation. */
@@ -318,7 +384,13 @@ function updateTheme() {
 function applyNight(on) {
   night = on;
   document.documentElement.classList.toggle("night", on);
-  document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#2F6FED";
+  document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#002B7F";
+  // The day navy-family route blue is too dark on the night map.
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (map.getLayer("route")) {
+    map.setPaintProperty("route", "line-color", css(on ? "--mana-route-night" : "--mana-route"));
+    map.setPaintProperty("route-casing", "line-color", css(on ? "--mana-route-casing-night" : "--mana-route-casing"));
+  }
   const paint = (id, prop, value) => {
     const key = `${id}|${prop}`;
     if (on) {
@@ -375,7 +447,7 @@ function onLocation() {
   const nav = state.nav;
   let shown = state.here;
   if (nav && state.stops.length && distance(state.here, state.stops[0].at) < STOP_REACHED_METERS) {
-    say(`Arriving at ${state.stops.shift().name}`);
+    say(`Arriving at ${shown(state.stops.shift())}`);
     drawRoutes();
   }
   if (nav) {
@@ -386,8 +458,11 @@ function onLocation() {
   map.getSource("me")?.setData(fc([pointFeature(shown, { heading: state.heading ?? 0 })]));
   updateTheme();
   if (state.following) {
+    // Driving: closer in town, further out on highways, with the car low so more of the road ahead shows.
+    const want = speedZoom(state.speed * 3.6);
+    const zoom = !nav ? map.getZoom() : Math.abs(want - map.getZoom()) >= SPEED_ZOOM_STEP ? want : map.getZoom();
     map.easeTo({ center: shown, bearing: nav && state.heading != null ? state.heading : map.getBearing(), pitch: nav ? 50 : 0,
-      zoom: nav ? Math.max(map.getZoom(), 16) : map.getZoom(), duration: 900 });
+      zoom, padding: { top: nav ? innerHeight * (2 * CAR_Y - 1) : 0, bottom: 0, left: 0, right: 0 }, duration: 900 });
   }
 }
 
@@ -406,12 +481,13 @@ $("search").addEventListener("input", () => {
     searchReturn = null;
     history.replaceState(null, "", location.href);
   }
-  $("clear").hidden = !q && !state.destination;
+  // Clear stays while the list is open, even with nothing typed, so one tap closes it.
+  showClear(!!q || !!state.destination || document.activeElement === $("search"));
   clearTimeout(searchTimer);
-  if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : state.savingSlot ? showMapPickRow() : showMenu();
+  if (q.length < 3) return q ? showResults([]) : state.picking ? startPicking(state.picking) : state.savingSlot ? showMapPickRow() : showSaved();
   searchTimer = setTimeout(() => search(q, false), 350);
 });
-$("search").addEventListener("focus", () => { if (!$("search").value && !state.picking && !state.savingSlot) showMenu(); });
+$("search").addEventListener("focus", () => { if (!$("search").value && !state.picking && !state.savingSlot) { showSaved(); showClear(true); } });
 $("search").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   submitSearch();
@@ -422,12 +498,19 @@ function submitSearch() {
   const q = $("search").value.trim();
   if (q) { $("search").blur(); search(q, true); }
 }
+/** The search bar's right-hand slot: Clear while searching or showing a place, the Menu otherwise. */
+function showClear(on) {
+  $("clear").hidden = !on;
+  $("menuButton").hidden = on;
+}
+$("menuButton").onclick = () => showMenu();
 $("clear").onclick = () => {
   if (state.picking) return stopPicking();
   if (state.savingSlot) { state.savingSlot = null; $("search").placeholder = SEARCH_HINT; }
   $("search").value = "";
-  $("clear").hidden = true;
+  showClear(false);
   showResults([]);
+  $("search").blur();
   if (!state.nav) clearRoute();
 };
 
@@ -529,13 +612,27 @@ function showResults(places, near, fit = false) {
       row.querySelector(".pin").classList.add("candidate-number");
       row.querySelector(".pin").textContent = String(i + 1);
     }
-    row.querySelector(".name").textContent = p.name;
-    row.querySelector(".detail").textContent = p.detail;
+    row.querySelector(".name").textContent = shown(p);
+    row.querySelector(".detail").textContent = shortAddress(p.detail);
     row.querySelector(".far").textContent = near ? shortDistance(distance(near, p.at)) : "";
     row.onclick = () => choose(p);
     return row;
   }));
+  // With the map in view below: as many whole rows as fit, never one cut in half.
+  list.style.maxHeight = "";
+  if (fit && places.length) {
+    const cap = innerHeight * 0.36;
+    let h = 8; // the list's padding
+    for (const row of list.children) { if (h + row.offsetHeight > cap && h > 8) break; h += row.offsetHeight; }
+    list.style.maxHeight = `${h}px`;
+  }
 }
+
+/** The name to show or say: dropped pins and typed coordinates keep a "📍 " in their name, never shown. */
+const shown = (place) => place.name.replace(/^📍 /, "");
+/** An address without what every Malaysian one repeats: the country and postcode. State names stay. */
+const shortAddress = (detail) => detail.split(", ").map((part) => part.replace(/(?<![\d.])\d{5}(?![\d.])/g, "").trim())
+  .filter((part) => part && part !== "Malaysia").join(", ");
 
 function setSearchCandidates(places) {
   map.getSource("search-results")?.setData(fc(places.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
@@ -549,16 +646,20 @@ function goTo(place) {
     ? { query: $("search").value, places: shownResults.slice(), near: shownResultsNear } : null;
   if (searchReturn) history.pushState({ roadwiseSearchResult: true }, "", location.href);
   showResults([]);
-  $("search").value = place.name;
+  $("search").value = shown(place);
   $("search").blur();
-  $("clear").hidden = false;
+  showClear(true);
   clearRoute();
   state.destination = place;
   drawRoutes(); // Just the destination pin, hidden until the map gets there.
   ++pinDrop;
   map.setPaintProperty("dest", "icon-opacity", 0);
-  $("placeName").textContent = place.name;
-  $("placeDetail").textContent = [place.detail, state.here && `${shortDistance(distance(state.here, place.at))} away`].filter(Boolean).join("  ·  ");
+  $("placeName").textContent = shown(place);
+  // How far first, in bold: what a driver judges a place by at a glance. Then the address.
+  const away = state.here ? `<b>${shortDistance(distance(state.here, place.at))} away</b>` : "";
+  const where = shortAddress(place.detail).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  $("placeDetail").innerHTML = [away, where].filter(Boolean).join("  ·  ");
+  showSaveState();
   $("placeFlag").hidden = !place.driverId;
   // Coordinates and map taps are named "📍 …": usually a spot the map has nothing for.
   $("placeAdd").hidden = !!place.driverId || !place.name.startsWith("📍");
@@ -573,17 +674,26 @@ function restoreSearchResults() {
   searchReturn = null;
   clearRoute();
   $("search").value = saved.query;
-  $("clear").hidden = false;
+  showClear(true);
   showResults(saved.places, saved.near, true);
 }
 window.addEventListener("popstate", restoreSearchResults);
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
-$("placeSave").onclick = () => {
-  const home = document.createElement("button"); home.className = "plain"; home.textContent = "⌂  Home";
-  const work = document.createElement("button"); work.className = "plain"; work.textContent = "▦  Work";
-  home.onclick = () => { $("sheet").hidden = true; saveHomeWork("home", state.destination); };
-  work.onclick = () => { $("sheet").hidden = true; saveHomeWork("work", state.destination); };
-  showSheet("Save this place", home, work);
+$("routeAddStop").onclick = () => startPicking("stop");
+/** Home or Work already at the destination's spot, if either is. */
+const savedAs = (place) => place && ["home", "work"].find((slot) => state[slot] && distance(state[slot].at, place.at) < 30);
+/** Save reads "Saved" once the place is Home or Work. */
+function showSaveState() {
+  const saved = !!savedAs(state.destination);
+  for (const id of ["placeSave", "routeSave"]) {
+    $(id).querySelector("span").textContent = saved ? "Saved" : "Save";
+    $(id).setAttribute("aria-label", saved ? "Saved" : "Save this place");
+  }
+}
+$("placeSave").onclick = $("routeSave").onclick = () => {
+  const choice = (slot, label) => Object.assign(document.createElement("button"), { className: "pill wide",
+    innerHTML: `${icon(slot)}<span>${label}</span>`, onclick: () => { $("sheet").hidden = true; saveHomeWork(slot, state.destination); } });
+  showSheet("Save as", choice("home", "Home"), choice("work", "Work"));
 };
 $("placeClose").onclick = () => searchReturn ? history.back() : $("clear").onclick();
 $("placeAdd").onclick = () => addMissingPlace(state.destination.at);
@@ -608,6 +718,12 @@ $("placeFlag").onclick = () => {
 };
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// The map buttons and the speed sign sit just above whichever card is along the bottom.
+const stackObserver = new ResizeObserver(() => {
+  const h = Math.max(...["panel", "placeCard"].map((id) => ($(id).hidden ? 0 : $(id).offsetHeight)));
+  document.documentElement.style.setProperty("--stack", `${h}px`);
+});
+for (const id of ["panel", "placeCard"]) stackObserver.observe($(id));
 function showCard(el) {
   clearTimeout(el.hideTimer);
   if (el.hidden) { el.hidden = false; void el.offsetHeight; } // Start from the hidden pose.
@@ -682,10 +798,10 @@ function selectRoute(i) {
   list.replaceChildren(...state.routes.map((r, k) => {
     const b = document.createElement("button");
     b.className = `route${k === i ? " on" : ""}`;
-    const traffic = r.delay >= 60 ? ` · traffic +${formatDuration(r.delay)}` : "";
+    const traffic = r.delay >= 60 ? `traffic +${formatDuration(r.delay)}` : "";
     b.innerHTML = `<span><div class="time"></div><div class="sub"></div></span><span class="sub"></span>`;
     b.querySelector(".time").textContent = formatDuration(r.seconds);
-    b.querySelectorAll(".sub")[0].textContent = `${shortDistance(r.meters)}${r.via ? ` · ${r.via}` : ""}${traffic}`;
+    b.querySelectorAll(".sub")[0].textContent = joinWhole([shortDistance(r.meters), traffic, r.via && `via ${r.via}`]);
     b.querySelectorAll(".sub")[1].textContent = clock(r.seconds);
     b.onclick = () => selectRoute(k);
     return b;
@@ -728,14 +844,16 @@ function choose(place) {
   if (kind === "origin") state.origin = place;
   else if (state.stops.length >= MAX_STOPS) return toast(`Up to ${MAX_STOPS} stops`);
   else state.stops.push(place);
+  if (state.nav) return reroute(); // Driving: carry on, through the new stop.
   planRoute(kind === "origin");
 }
 
-function startPicking(kind) {
+/** [typing]: put the cursor in the box for a search the driver types in. */
+function startPicking(kind, typing = true) {
   state.picking = kind;
   $("search").value = "";
   $("search").placeholder = kind === "origin" ? "Start from: search a place" : "Add a stop: search a place";
-  $("clear").hidden = false;
+  showClear(true);
   showResults([]);
   // Picking where to start: going back to here comes first.
   if (kind === "origin" && state.origin) {
@@ -746,7 +864,7 @@ function startPicking(kind) {
     b.onclick = startFromHere;
     $("results").replaceChildren(b);
   }
-  $("search").focus();
+  if (typing) $("search").focus();
 }
 
 /** Back to routing from where the phone is, after planning from another start. */
@@ -760,9 +878,11 @@ function stopPicking() {
   state.picking = null;
   $("search").placeholder = SEARCH_HINT;
   $("search").value = state.destination?.name ?? "";
-  $("clear").hidden = !state.destination;
+  showClear(!!state.destination);
   showResults([]);
   $("search").blur();
+  // Driving: the turn banner comes back once the stop is picked or the search is closed.
+  if (state.nav) { $("searchBox").hidden = true; $("banner").hidden = false; }
 }
 
 function removeStop(stop) {
@@ -778,7 +898,7 @@ function moveStop(from, to) {
 /** The trip on the route card before starting: From (tap to plan from elsewhere), stops with earlier / later / remove, Add stop, Best order. */
 function renderTrip() {
   const el = $("trip");
-  $("go").hidden = !!state.origin;
+  $("go").hidden = !!state.origin || !!state.nav;
   if (state.nav || !state.destination) return el.replaceChildren();
   const button = (name, label, onclick) => Object.assign(document.createElement("button"), { className: "btn", ariaLabel: label, innerHTML: icon(name), onclick });
   const row = (lead, text, onclick, ...buttons) => {
@@ -793,13 +913,12 @@ function renderTrip() {
   const link = (text, onclick) => Object.assign(document.createElement("button"), { className: "tripLink", textContent: text, onclick });
   const o = state.origin;
   el.replaceChildren(
-    row("●", o ? `From ${o.name} · planning only` : "From your location", () => startPicking("origin"),
+    row("●", o ? `From ${shown(o)} · planning only` : "From your location", () => startPicking("origin"),
       ...(o ? [button("locate", "Start from your location", startFromHere)] : [])),
-    ...state.stops.map((p, i) => row(String(i + 1), p.name, null,
+    ...state.stops.map((p, i) => row(String(i + 1), shown(p), null,
       ...(i > 0 ? [button("up", "Move stop earlier", () => moveStop(i, i - 1))] : []),
       ...(i < state.stops.length - 1 ? [button("down", "Move stop later", () => moveStop(i, i + 1))] : []),
       button("close", "Remove stop", () => removeStop(p)))),
-    ...(state.stops.length < MAX_STOPS ? [link("+ Add stop", () => startPicking("stop"))] : []),
     ...(state.stops.length >= 2 ? [link("Best order", bestOrder)] : []),
   );
 }
@@ -844,7 +963,9 @@ async function bestOrder() {
 
 // --- Navigation ---
 
-$("go").onclick = () => (state.nav ? stopNavigation() : startNavigation());
+$("go").onclick = () => startNavigation();
+$("exit").onclick = () => stopNavigation();
+$("navAddStop").onclick = () => showStopTiles();
 
 function startNavigation() {
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
@@ -856,10 +977,13 @@ function startNavigation() {
   $("searchBox").hidden = true;
   $("banner").hidden = false;
   $("routes").hidden = true;
+  $("routeActions").hidden = true;
   $("navInfo").hidden = false;
-  $("go").innerHTML = `${icon("stop")}`;
-  $("go").setAttribute("aria-label", "Stop navigation");
-  $("go").classList.add("stop");
+  $("speedView").hidden = false;
+  $("go").hidden = true;
+  showPlaceIcons(false);
+  // Shown from the start; each update moves it on to the next turn.
+  drawTurnArrow(r.steps.find((x) => !["depart", "arrive"].includes(x.type)));
   drawRoutes();
   renderTrip();
   keepAwake(true);
@@ -873,11 +997,14 @@ function stopNavigation() {
   $("searchBox").hidden = false;
   $("banner").hidden = true;
   $("routes").hidden = false;
+  $("routeActions").hidden = false;
   $("navInfo").hidden = true;
-  $("go").innerHTML = `${icon("navigation")} Start`;
-  $("go").removeAttribute("aria-label");
-  $("go").classList.remove("stop");
-  map.easeTo({ pitch: 0, bearing: 0 });
+  $("speedView").hidden = true;
+  $("go").hidden = !!state.origin;
+  $("sheet").hidden = true;
+  showPlaceIcons(true);
+  drawTurnArrow(null);
+  map.easeTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
   drawRoutes();
   renderTrip();
 }
@@ -940,12 +1067,13 @@ function showNav(u) {
   $("speedView").classList.toggle("has-limit", limit != null);
   $("speedView").classList.toggle("speeding", limit != null && state.speedKmh != null && state.speedKmh > limit + 5);
   $("arrow").textContent = symbolFor(u.step);
+  if (u.step !== nav.arrowFor) { nav.arrowFor = u.step; drawTurnArrow(u.step); }
   $("bannerDistance").textContent = u.arrived ? "Arrived" : shortDistance(u.dist);
   $("bannerText").textContent = bannerFor(u.step);
   $("then").hidden = !u.then;
   if (u.then) $("then").textContent = `Then ${symbolFor(u.then)}  ${shortDistance(u.gap)}`;
   $("navEta").textContent = clock(u.secondsLeft);
-  $("navLeft").textContent = `${formatDuration(u.secondsLeft)} · ${shortDistance(u.left)}`;
+  $("navLeft").textContent = joinWhole([formatDuration(u.secondsLeft), shortDistance(u.left)]);
   if (u.speak) say(u.speak);
   if (u.arrived) {
     const took = (Date.now() - nav.startedAt) / 1000, off = Math.round((took - nav.predicted) / 60);
@@ -998,7 +1126,7 @@ function instructionFor(step) {
   const onto = step.road ? ` onto ${step.road}` : "";
   const words = { "sharp left": "sharp left", "sharp right": "sharp right", "slight left": "slightly left", "slight right": "slightly right", uturn: "around" };
   const dir = step.modifier ? words[step.modifier] ?? step.modifier : null;
-  const ordinal = (n) => ["first", "second", "third", "fourth", "fifth"][n - 1] ?? `${n}th`;
+  const ordinal = (n) => ["first", "second", "fourth", "fifth"][n - 1] ?? `${n}th`;
   switch (step.type) {
     case "depart": return `Head ${dir ?? "out"}${step.road ? ` on ${step.road}` : ""}`;
     case "arrive": return "Arrive at your destination";
@@ -1056,7 +1184,7 @@ function showTraffic(on) {
 }
 
 const INCIDENT = {
-  1: ["car_crash", "#D93025", "Accident"], 8: ["block", "#3C4043", "Road closed"], 9: ["construction", "#F29900", "Roadworks"], 7: ["construction", "#F29900", "Roadworks"],
+  1: ["car_crash", "#CE1126", "Accident"], 8: ["block", "#5F6368", "Road closed"], 9: ["construction", "#F29900", "Roadworks"], 7: ["construction", "#F29900", "Roadworks"],
   6: ["traffic_jam", "#9334E6", "Traffic jam"], 14: ["car_repair", "#F29900", "Broken-down vehicle"], 3: ["warning", "#F29900", "Incident"], 5: ["flood", "#F29900", "Incident"],
 };
 /** Incidents around the view: asked for again only on new ground or after a few minutes (each ask uses TomTom quota). */
@@ -1105,29 +1233,50 @@ async function refreshReports() {
   })));
 }
 
+const closeTile = { sprite: "close", label: "Close", color: NEUTRAL_TILE, pick: () => ($("sheet").hidden = true) };
 $("reportButton").onclick = () => {
   if (!state.here) { startLocation(); return toast("Finding your location…"); }
-  showTiles("What's on the road?", REPORT_TYPES.map((t) => ({ glyph: t.glyph, label: t.short, color: t.color,
-    pick: () => (t.subtypes.length ? showSubtypes(t) : sendReport(t, null)) })));
+  showTiles("Report", [...REPORT_TYPES.map((t) => ({ glyph: t.glyph, label: t.short, color: t.color,
+    pick: () => (t.subtypes.length ? showSubtypes(t) : sendReport(t, null)) })), closeTile]);
 };
 function showSubtypes(t) {
   const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
   if (t.key === "hazard") tiles.push({ glyph: t.glyph, label: "Other", color: t.color, pick: () => sendReport(t, null) });
-  showTiles(t.label, tiles);
+  tiles.push({ sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: $("reportButton").onclick });
+  showTiles(t.short, tiles);
 }
+/** Big tiles, three to a row: a report glyph (glyphs.js) or an icon from the sprite, and one word. */
 function showTiles(title, tiles) {
   $("sheetTitle").textContent = title;
   $("tiles").replaceChildren(...tiles.map((t) => {
     const b = document.createElement("button");
     b.className = "tile";
-    b.style.background = t.color;
-    b.innerHTML = `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
-    b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
+    b.style.setProperty("--tile", t.color);
+    b.innerHTML = t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
+      : `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
+    if (!t.sprite) b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
     b.querySelector("span").textContent = t.label;
     b.onclick = t.pick;
     return b;
   }));
+  $("sheetClose").hidden = true; // The tiles have their own Close.
   $("sheet").hidden = false;
+}
+
+/**
+ * Add stop while driving: kinds of stop as tiles, so the turn banner stays in view; one tap searches
+ * (no keyboard). Search… is for anything else.
+ */
+function showStopTiles() {
+  const pick = (word) => {
+    $("sheet").hidden = true;
+    $("banner").hidden = true;
+    $("searchBox").hidden = false;
+    startPicking("stop", !word);
+    if (word) { $("search").value = word; search(word, true); }
+  };
+  showTiles("Add stop", [...STOP_KINDS.map(([word, label, sprite]) => ({ sprite, label, color: "#2457E6", pick: () => pick(word) })),
+    { sprite: "search", label: "Search", color: NEUTRAL_TILE, pick: () => pick(null) }, closeTile]);
 }
 $("sheetClose").onclick = () => ($("sheet").hidden = true);
 
@@ -1136,7 +1285,7 @@ async function sendReport(type, sub) {
   const [lng, lat] = state.here;
   try {
     await supabase("POST", "reports", { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}) });
-    toast(`${sub?.icon ?? type.icon} ✓`);
+    toast(`Reported: ${sub?.title ?? type.label}`);
     refreshReports();
   } catch (e) {
     toast(`Couldn't send report: ${e.message}`);
@@ -1154,30 +1303,46 @@ supabase("GET", "donations?select=*").then((rows) => {
   if (d) donations = { ...d, kofi_url: KOFI_URL.test(d.kofi_url ?? "") ? d.kofi_url : null, bmac_url: BMAC_URL.test(d.bmac_url ?? "") ? d.bmac_url : null };
 }).catch(() => {});
 
-/** What the empty search box offers: donating and asking for a feature. */
-function showMenu() {
-  const row = (icon, title, detail, onclick) => {
+/** Home and Work side by side: what the empty search box offers (settings and the rest are in the Menu). */
+function showSaved() {
+  const tile = (slot, label) => {
     const b = document.createElement("button");
-    b.className = "row";
-    b.innerHTML = `<span class="pin"></span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
-    b.querySelector(".pin").innerHTML = icon;
-    b.querySelector(".name").textContent = title;
-    b.querySelector(".detail").textContent = detail;
+    b.className = "row half";
+    b.innerHTML = `<span class="pin">${icon(slot)}</span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
+    b.querySelector(".name").textContent = label;
+    b.querySelector(".detail").textContent = state[slot] ? shown(state[slot]) : "Tap to set";
     b.onmousedown = (e) => e.preventDefault(); // Keep the keyboard's blur from eating the tap.
-    b.onclick = () => { $("search").blur(); showResults([]); onclick(); };
+    b.onclick = () => { $("search").blur(); showResults([]); state[slot] ? goTo(state[slot]) : startSaving(slot); };
     return b;
   };
-  const savedRow = (slot, label, glyph) => row(icon(glyph), state[slot]?.name || label,
-    state[slot] ? [state[slot].detail, "Tap to navigate"].filter(Boolean).join(" · ") : `Tap to set ${label.toLowerCase()} · search or choose on map`,
-    () => state[slot] ? goTo(state[slot]) : startSaving(slot));
-  $("results").replaceChildren(
-    savedRow("home", "Home", "pin"), savedRow("work", "Work", "navigation"),
-    row(icon("coffee"), "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm} this month` : "Donate with DuitNow", showSupport),
-    row(icon("pin"), "Add a missing place", "A shop or stall the map doesn't have", startAddingPlace),
-    row(icon("lightbulb"), "Request a feature", "What would make Mana better for you?", requestFeature),
-  );
+  const pair = Object.assign(document.createElement("div"), { className: "pair" });
+  pair.append(tile("home", "Home"), tile("work", "Work"));
+  $("results").replaceChildren(pair);
 }
 
+/** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
+function showMenu() {
+  $("search").blur();
+  showResults([]);
+  const group = (title) => Object.assign(document.createElement("div"), { className: "menuGroup", textContent: title });
+  const row = (sprite, label, value, onclick) => {
+    const b = document.createElement("button");
+    b.className = "menuRow";
+    b.innerHTML = `${icon(sprite)}<span class="label"></span><span class="value"></span>`;
+    b.querySelector(".label").textContent = label;
+    b.querySelector(".value").textContent = value ?? "";
+    b.onclick = () => { $("sheet").hidden = true; onclick(); };
+    return b;
+  };
+  showSheet("Menu",
+    group("Help other drivers"), row("add-location", "Add a place missing from the map", null, startAddingPlace),
+    group("Support"),
+    row("coffee", "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm}` : null, showSupport),
+    row("lightbulb", "Request a feature", null, requestFeature),
+    group("About"),
+    row("info", "About, privacy & licences", null, () => open("https://github.com/ycryga/roadwise-releases/blob/main/PRIVACY.md", "_blank", "noopener")),
+  );
+}
 
 function saveHomeWork(slot, place) {
   if (!slot || !place) return;
@@ -1189,16 +1354,17 @@ function saveHomeWork(slot, place) {
     state.savingSlot = null;
     $("search").placeholder = SEARCH_HINT;
     $("search").value = "";
-    $("clear").hidden = true;
-    showMenu();
+    showClear(false);
+    showResults([]);
   }
-  toast(`${slot === "home" ? "Home" : "Work"} saved`);
+  toast(`Saved as ${slot === "home" ? "Home" : "Work"}`);
+  if (state.destination) showSaveState();
 }
 function startSaving(slot) {
   state.savingSlot = slot;
   $("search").value = "";
   $("search").placeholder = `Set ${slot === "home" ? "Home" : "Work"}: search or tap the map`;
-  $("clear").hidden = false;
+  showClear(true);
   showMapPickRow();
   $("search").focus();
 }
@@ -1233,9 +1399,7 @@ function addMissingPlace(at) {
   showSheet("What kind of place?", ...PLACE_KINDS.map((kind) => {
     const b = document.createElement("button");
     b.className = "tile kind";
-    b.innerHTML = `<span class="emoji"></span><span></span>`;
-    b.querySelector(".emoji").textContent = kind.symbol;
-    b.querySelector("span:last-child").textContent = kind.label;
+    b.textContent = kind.label;
     b.onclick = () => askMissingName(at, kind);
     return b;
   }));
@@ -1261,7 +1425,7 @@ function askMissingName(at, kind) {
       return toast(`Couldn't add it: ${e.message}`);
     }
     $("sheet").hidden = true;
-    toast(`${kind.symbol} ${n} added`);
+    toast(`Added ${n}`);
     // Only a bonus: the place is already in Mana. Sent blind, as the notes API's answer isn't needed.
     if (osmBox.checked) {
       const note = `Missing place: ${n} (${kind.label.toLowerCase()}). Added by a driver in the Mana app; please check before mapping.`;
@@ -1269,13 +1433,14 @@ function askMissingName(at, kind) {
         body: new URLSearchParams({ lat: at[1], lon: at[0], text: note }) }).catch(() => {});
     }
   };
-  showSheet(`${kind.symbol}  ${kind.label}`, text, label, name, osm, add);
+  showSheet(kind.label, text, label, name, osm, add);
   name.focus();
 }
 
 function showSheet(title, ...content) {
   $("sheetTitle").textContent = title;
   $("tiles").replaceChildren(...content);
+  $("sheetClose").hidden = false;
   $("sheet").hidden = false;
 }
 
