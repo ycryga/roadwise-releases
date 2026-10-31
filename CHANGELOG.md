@@ -3,6 +3,15 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.15.0 — 2026-10-31
+
+- **Browser version**: Mana in the browser now looks and works like the app. The same navy and red
+  colours; while driving, the map zooms with your speed and keeps your car low on the screen, with
+  one arrow at the next turn, your speed on the left and a big red **Report** on the right. Report
+  and **Add stop** open as big tiles, three to a row. The **☰ Menu** sits in the search bar, the
+  place card shows how far it is first, and choosing a route ends with a **Go** button. Words
+  instead of emoji throughout.
+
 ## 0.14.1 — 2026-10-31
 
 - **Fixed**: tapping **Save** without typing a name closed the box, and you had to start saving
