@@ -77,7 +77,7 @@ The [privacy page](PRIVACY.md) lists exactly what is sent, to whom, and why.
 
 ## Help make it better
 
-- **Ideas?** Use **☰ → Request a feature** in the app.
+- **Found a bug, or have an idea?** Use **☰ → Report a bug or idea** in the app.
 - **Found a bug or a wrong speed limit?** [Open an issue](https://github.com/ycryga/roadwise-releases/issues).
 - **Wrong road, missing place or traffic light?** Fix it on [OpenStreetMap](https://www.openstreetmap.org),
   which Mana reads from, and everyone benefits.

@@ -1,7 +1,7 @@
 # Mana roadmap
 
 What's being worked on, what's next, and ideas for later. Plans change with what drivers ask for:
-send yours with **☰ → Request a feature** in the app or in the [browser version](https://ycryga.github.io/roadwise-releases/).
+send yours with **☰ → Report a bug or idea** in the app or in the [browser version](https://ycryga.github.io/roadwise-releases/).
 What's already out is in the [changelog](CHANGELOG.md).
 
 ## 🚧 Working on now

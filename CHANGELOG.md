@@ -3,7 +3,19 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
-## 0.17.1 — 2026-11-01
+## 0.17.2 — 2026-10-31
+
+- **Report a bug or idea**: the Menu's **Request a feature** is now **Report a bug or idea**, for
+  anything that went wrong as well as ideas. It also sends which version of Mana you have, so bugs
+  can be found faster.
+- **Live traffic stays free**: Mana now uses only its free daily share of live traffic. On a very
+  busy day it may run out; the route then says **Live traffic paused until tomorrow**, and turning
+  traffic on offers a way to **Support** Mana. Routes and search keep working as usual.
+- Search asks the extra place search only when the usual one finds little.
+- **Support Mana** no longer shows how much has been given until the first donation.
+- The same in the browser version.
+
+## 0.17.1 — 2026-10-31
 
 - **Fixed**: when there was traffic, an orange or red line ran beside the blue route instead of on
   it, so the road looked like it had two lines. Slow and stopped traffic is now drawn on the route
