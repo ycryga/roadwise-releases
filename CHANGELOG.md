@@ -3,6 +3,12 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.14.1 — 2026-10-31
+
+- **Fixed**: tapping **Save** without typing a name closed the box, and you had to start saving
+  again. Now it stays open and says a name is needed. The same goes for adding a missing place,
+  requesting a feature, and the toll amount, where a wrong amount skipped straight to the next toll.
+
 ## 0.14.0 — 2026-10-31
 
 A new look, in Mana's navy, red and white, made for a quick glance while driving.
