@@ -3,6 +3,14 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.17.1 — 2026-11-01
+
+- **Fixed**: when there was traffic, an orange or red line ran beside the blue route instead of on
+  it, so the road looked like it had two lines. Slow and stopped traffic is now drawn on the route
+  itself, and while you drive the traffic lines on other roads are hidden (they come back when you
+  stop).
+- The same in the browser version.
+
 ## 0.17.0 — 2026-10-31
 
 - **Nearby**: tap the search box and pick **Petrol station**, **Food**, **Toilet**, **Rest area**,
