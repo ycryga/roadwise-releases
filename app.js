@@ -46,6 +46,11 @@ const STOP_KINDS = [["petrol", "Petrol station", "fuel", ["amenity:fuel"]],
 /** How far around a kind of place is looked for, as the app's NEARBY_SEARCH_KM. */
 const NEARBY_KM = 10;
 const NEUTRAL_TILE = "#80868B";
+/** TomTom search is asked only when the free search finds fewer places than this (as the app). */
+const TOMTOM_SEARCH_BELOW = 3;
+/** Mana's daily share of TomTom's free traffic is used up (the server answers 429) until midnight. */
+let trafficPaused = false;
+const TRAFFIC_PAUSED = "Live traffic paused until tomorrow";
 
 // Kinds of place drivers can add, as the Android DriverPlaces (and supabase/places.sql).
 const PLACE_KINDS = [
@@ -566,11 +571,12 @@ async function search(q, pressed) {
   const kind = STOP_KINDS.find(([word]) => word === q.trim().toLowerCase());
   const places = await withProgress(async () => {
     if (kind) return photonNearby(kind, near).catch(() => []);
-    const free = photon(q, near).catch(() => []);
-    const tomtom = pressed ? trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
-      .then((o) => o.places.map((p) => ({ name: p.name || p.detail, detail: p.detail, at: [p.lon, p.lat] }))).catch(() => []) : [];
     const drivers = driverPlaces(q, near);
-    const all = [...(await free), ...(await tomtom)];
+    const free = await photon(q, near).catch(() => []);
+    // TomTom only when the free search finds little: its free share is ~75 searches a day for everyone.
+    const tomtom = pressed && free.length < TOMTOM_SEARCH_BELOW ? await trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
+      .then((o) => o.places.map((p) => ({ name: p.name || p.detail, detail: p.detail, at: [p.lon, p.lat] }))).catch(() => []) : [];
+    const all = [...free, ...tomtom];
     // Driver-added places aren't merged away: they're there because the map lacks them.
     return [...all.filter((p, i) => all.findIndex((o) => distance(o.at, p.at) < SAME_PLACE_METERS) === i), ...(await drivers)];
   });
@@ -815,8 +821,9 @@ async function fetchRoutes(points, alternatives) {
   await Promise.all(routes.map(async (r) => {
     const step = Math.max(1, Math.floor(r.points.length / 600));
     const thin = r.points.filter((_, i) => i % step === 0 || i === r.points.length - 1).map(([lng, lat]) => [lat, lng]);
-    const t = await trafficCall("", { route: thin }).catch(() => null);
+    const t = await trafficCall("", { route: thin }).catch((e) => { trafficPaused = e.message === "traffic 429"; return null; });
     if (!t) return;
+    trafficPaused = false;
     r.seconds = t.seconds;
     r.delay = t.delaySeconds || 0;
     r.limits = (t.limits || []).filter((s) => s.points.length >= 2).map((s) => ({
@@ -848,7 +855,7 @@ function selectRoute(i) {
   list.replaceChildren(...state.routes.map((r, k) => {
     const b = document.createElement("button");
     b.className = `route${k === i ? " on" : ""}`;
-    const traffic = r.delay >= 60 ? `traffic +${formatDuration(r.delay)}` : "";
+    const traffic = r.delay >= 60 ? `traffic +${formatDuration(r.delay)}` : k === i && trafficPaused ? TRAFFIC_PAUSED : "";
     b.innerHTML = `<span><div class="time"></div><div class="sub"></div></span><span class="sub"></span>`;
     b.querySelector(".time").textContent = formatDuration(r.seconds);
     b.querySelectorAll(".sub")[0].textContent = joinWhole([shortDistance(r.meters), traffic, r.via && `via ${r.via}`]);
@@ -1224,6 +1231,12 @@ $("trafficButton").onclick = () => {
   state.traffic = !state.traffic;
   localStorage.setItem("traffic", state.traffic ? "1" : "0");
   showTraffic(state.traffic);
+  // Today's free share is used up: say so, and how drivers can keep it on.
+  if (state.traffic && trafficPaused) {
+    const support = Object.assign(document.createElement("button"), { className: "primary", textContent: "Support" });
+    support.onclick = showSupport;
+    showSheet(TRAFFIC_PAUSED, support);
+  }
 };
 function showTraffic(on) {
   $("trafficButton").classList.toggle("off", !on);
@@ -1404,8 +1417,9 @@ function showMenu() {
   showSheet("Menu",
     group("Help other drivers"), row("add-location", "Add a place missing from the map", null, startAddingPlace),
     group("Support"),
-    row("coffee", "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm}` : null, showSupport),
-    row("lightbulb", "Request a feature", null, requestFeature),
+    // Progress shows once something has been given: "RM0 of RM300" reads as nobody cares.
+    row("coffee", "Support Mana", donations?.raised_rm > 0 ? `RM${donations.raised_rm} of RM${donations.goal_rm}` : null, showSupport),
+    row("lightbulb", "Report a bug or idea", null, requestFeature),
     group("About"),
     // The app's About text (credits, privacy, licences), published next to the site by publish-web.sh.
     row("info", "About, privacy & licences", null, () => open("about.txt", "_blank", "noopener")),
@@ -1527,22 +1541,22 @@ function showSupport() {
 }
 
 function requestFeature() {
-  const box = Object.assign(document.createElement("textarea"), { rows: 4, maxLength: 500, placeholder: "What would make Mana better for you?" });
+  const box = Object.assign(document.createElement("textarea"), { rows: 4, maxLength: 500, placeholder: "What went wrong, or what would make Mana better?" });
   const send = Object.assign(document.createElement("button"), { className: "primary", textContent: "Send" });
   send.onclick = async () => {
     const text = box.value.trim();
     if (text.length < 5) return toast("Tell us a bit more");
     send.disabled = true;
     try {
-      await supabase("POST", "feature_requests", { text, source: "web" });
+      await supabase("POST", "feature_requests", { text, source: "web", app_version: window.ROADWISE?.VERSION ?? null });
       $("sheet").hidden = true;
-      toast("Thanks! Request sent");
+      toast("Thanks! Sent");
     } catch (e) {
       send.disabled = false;
       toast(`Couldn't send it: ${e.message}`);
     }
   };
-  showSheet("Request a feature", box, send);
+  showSheet("Report a bug or idea", box, send);
   box.focus();
 }
 
