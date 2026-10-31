@@ -6,6 +6,7 @@ const { SUPABASE_URL, SUPABASE_KEY } = window.ROADWISE;
 const TRAFFIC = `${SUPABASE_URL}/functions/v1/traffic`;
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 const PHOTON = "https://photon.komoot.io/api/";
+const PHOTON_REVERSE = "https://photon.komoot.io/reverse";
 const OSRM = "https://router.project-osrm.org/route/v1/driving/";
 const KL = [101.6869, 3.139];
 
@@ -36,9 +37,14 @@ const speedZoom = (kmh) => 17 - (Math.min(110, Math.max(50, kmh)) - 50) * 0.04;
 const TURN_ARROW_BEFORE_M = 30, TURN_ARROW_AFTER_M = 20, MAX_TURN_ARROWS = 20;
 /** Roads drawn this much wider than the map style, so they read at a glance (as the app's ROAD_WIDTH). */
 const ROAD_WIDTH = 2;
-// Kinds of stop offered as tiles while driving, as the app's Places.stopShortcuts.
-const STOP_KINDS = [["petrol", "Petrol station", "fuel"], ["food", "Food", "food"], ["toilet", "Toilet", "toilet"],
-  ["rest area", "Rest area", "rest-area"], ["convenience store", "Convenience store", "store"], ["mosque", "Mosque", "mosque"]];
+// Kinds of stop offered as tiles while driving and as Nearby in the search list, as the app's Places.stopShortcuts.
+// Each with its OpenStreetMap tags, as the app's Places categories (and a name check where the tag is too broad).
+const STOP_KINDS = [["petrol", "Petrol station", "fuel", ["amenity:fuel"]],
+  ["food", "Food", "food", ["amenity:restaurant", "amenity:fast_food", "amenity:food_court"]], ["toilet", "Toilet", "toilet", ["amenity:toilets"]],
+  ["rest area", "Rest area", "rest-area", ["highway:rest_area", "highway:services"]], ["convenience store", "Convenience store", "store", ["shop:convenience"]],
+  ["mosque", "Mosque", "mosque", ["amenity:place_of_worship"], /masjid|surau|mosque|musolla|musalla/i]];
+/** How far around a kind of place is looked for, as the app's NEARBY_SEARCH_KM. */
+const NEARBY_KM = 10;
 const NEUTRAL_TILE = "#80868B";
 
 // Kinds of place drivers can add, as the Android DriverPlaces (and supabase/places.sql).
@@ -550,7 +556,9 @@ async function search(q, pressed) {
     const spot = { name: `📍 ${at[1].toFixed(5)}, ${at[0].toFixed(5)}`, detail: "", at };
     return pressed ? choose(spot) : showResults([spot], near); // Enter goes straight there.
   }
+  const kind = STOP_KINDS.find(([word]) => word === q.trim().toLowerCase());
   const places = await withProgress(async () => {
+    if (kind) return photonNearby(kind, near).catch(() => []);
     const free = photon(q, near).catch(() => []);
     const tomtom = pressed ? trafficCall(`?q=${encodeURIComponent(q)}&lat=${near[1]}&lon=${near[0]}`)
       .then((o) => o.places.map((p) => ({ name: p.name || p.detail, detail: p.detail, at: [p.lon, p.lat] }))).catch(() => []) : [];
@@ -562,9 +570,9 @@ async function search(q, pressed) {
   if (run !== searchRun) return; // A newer search has taken over.
   // Names with every word typed come first, then nearest first; list numbers and map pins follow this order.
   const words = q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
-  const full = (p) => words.length > 0 && words.every((w) => p.name.toLowerCase().includes(w));
+  const full = (p) => !kind && words.length > 0 && words.every((w) => p.name.toLowerCase().includes(w));
   const searchable = [...places].sort((a, b) => full(b) - full(a) || distance(near, a.at) - distance(near, b.at));
-  if (pressed && !searchable.length) toast("No places found");
+  if (pressed && !searchable.length) toast(kind ? `No ${kind[1].toLowerCase()} found nearby` : "No places found");
   let routable = searchable;
   // Only on a pressed search: while typing this would ask the free routing server on every key.
   if (pressed && !state.picking && searchable.length) {
@@ -601,7 +609,17 @@ function coordsIn(text) {
 }
 
 async function photon(q, near) {
-  const res = await fetch(`${PHOTON}?q=${encodeURIComponent(q)}&limit=15&lat=${near[1]}&lon=${near[0]}`);
+  return photonPlaces(await fetch(`${PHOTON}?q=${encodeURIComponent(q)}&limit=15&lat=${near[1]}&lon=${near[0]}`));
+}
+
+/** Places of one of the STOP_KINDS around [near], by their map tags rather than their names (as the app's Places.near). */
+async function photonNearby([, , , tags, nameHint], near) {
+  const filter = tags.map((t) => `&osm_tag=${encodeURIComponent(t)}`).join("");
+  const places = await photonPlaces(await fetch(`${PHOTON_REVERSE}?lat=${near[1]}&lon=${near[0]}&radius=${NEARBY_KM}&limit=10${filter}`));
+  return places.filter((p) => !nameHint || nameHint.test(p.name));
+}
+
+async function photonPlaces(res) {
   const json = await res.json();
   return json.features.map((f) => {
     const p = f.properties;
@@ -1328,21 +1346,30 @@ supabase("GET", "donations?select=*").then((rows) => {
   if (d) donations = { ...d, kofi_url: KOFI_URL.test(d.kofi_url ?? "") ? d.kofi_url : null, bmac_url: BMAC_URL.test(d.bmac_url ?? "") ? d.bmac_url : null };
 }).catch(() => {});
 
-/** Home and Work side by side: what the empty search box offers (settings and the rest are in the Menu). */
+/**
+ * Home and Work side by side, then kinds of place nearby: what the empty search box offers
+ * (settings and the rest are in the Menu).
+ */
 function showSaved() {
-  const tile = (slot, label) => {
+  const tile = (sprite, label, detail, onclick) => {
     const b = document.createElement("button");
     b.className = "row half";
-    b.innerHTML = `<span class="pin">${icon(slot)}</span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
+    b.innerHTML = `<span class="pin">${icon(sprite)}</span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
     b.querySelector(".name").textContent = label;
-    b.querySelector(".detail").textContent = state[slot] ? shown(state[slot]) : "Tap to set";
+    b.querySelector(".detail").textContent = detail;
     b.onmousedown = (e) => e.preventDefault(); // Keep the keyboard's blur from eating the tap.
-    b.onclick = () => { $("search").blur(); showResults([]); state[slot] ? goTo(state[slot]) : startSaving(slot); };
+    b.onclick = () => { $("search").blur(); onclick(); };
     return b;
   };
-  const pair = Object.assign(document.createElement("div"), { className: "pair" });
-  pair.append(tile("home", "Home"), tile("work", "Work"));
-  $("results").replaceChildren(pair);
+  const pair = (...tiles) => { const p = Object.assign(document.createElement("div"), { className: "pair" }); p.append(...tiles); return p; };
+  const slot = (key, label) => tile(key, label, state[key] ? shown(state[key]) : "Tap to set",
+    () => { showResults([]); state[key] ? goTo(state[key]) : startSaving(key); });
+  // One tap searches around here, no typing (as the app's Nearby).
+  const kinds = STOP_KINDS.map(([word, label, sprite]) => tile(sprite, label, "", () => { $("search").value = word; search(word, true); }));
+  const pairs = [];
+  for (let i = 0; i < kinds.length; i += 2) pairs.push(pair(...kinds.slice(i, i + 2)));
+  $("results").replaceChildren(pair(slot("home", "Home"), slot("work", "Work")),
+    Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Nearby" }), ...pairs);
 }
 
 /** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
