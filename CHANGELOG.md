@@ -3,6 +3,26 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.14.0 — 2026-10-31
+
+A new look, in Mana's navy, red and white, made for a quick glance while driving.
+
+- **Driving screen**: a navy turn banner, and the map zooms out as you speed up (close in town,
+  further out on the highway) with your car lower on the screen, so you see more of the road ahead.
+  Shops and other place icons step aside while you drive, and one white arrow marks the next turn.
+  Your speed sits alone on the left; the buttons, with a bigger red **Report**, sit on the right.
+- **Report** and **Add stop** open as big tiles you can tap without scrolling. Add stop shows
+  petrol, food, toilet, rest area, shop and mosque; one tap finds them along your route.
+- **Menu**: settings moved out of the search list into a **☰ Menu** in the search bar, grouped
+  (Driving, Help other drivers, Support, About), with each setting's value shown.
+- **Search and place card**: Home and Work side by side, clearer results with shorter addresses,
+  and the place card shows how far it is first, with labelled **Directions**, **Save** and
+  **Close** buttons. A saved place says **Saved**.
+- **Choosing a route**: the routes come first, then labelled **Add stop**, **Parking** and
+  **Save**, and the button says **Go**. Numbers no longer split from their units across lines.
+- **Words instead of emoji**: buttons and messages say what they mean ("Still there", "Gone",
+  "Saved as Home"), and dialogs are rounded, with darker colours at night.
+
 ## 0.13.1 — 2026-10-30
 
 - **Neater icon**: the m now sits in the middle of the app icon, with the red dot in the corner.
