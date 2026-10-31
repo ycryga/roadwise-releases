@@ -3,6 +3,13 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.17.0 — 2026-10-31
+
+- **Nearby**: tap the search box and pick **Petrol station**, **Food**, **Toilet**, **Rest area**,
+  **Convenience store** or **Mosque** under Home and Work. One tap finds them around you, numbered
+  on the map and in the list, no typing needed.
+- The same in the browser version, which now finds these by kind of place rather than by name.
+
 ## 0.16.0 — 2026-10-31
 
 - **Easier to read the road**: roads are drawn twice as wide, the route line is thicker, and while
