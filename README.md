@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="screenshots/banner.jpg" alt="Mana: turn-by-turn directions at night, a place card for KLCC, a trip with two stops, and search results" width="100%">
+  <img src="screenshots/banner.jpg" alt="Mana: turn-by-turn directions, a place card for PETRONAS Science Centre, route choices to Mid Valley Megamall, and numbered search results" width="100%">
 </p>
 
 ## What it does
@@ -77,12 +77,12 @@ The [privacy page](PRIVACY.md) lists exactly what is sent, to whom, and why.
 
 ## Help make it better
 
-- **Ideas?** Use **💡 Request a feature** in the app.
+- **Ideas?** Use **☰ → Request a feature** in the app.
 - **Found a bug or a wrong speed limit?** [Open an issue](https://github.com/ycryga/roadwise-releases/issues).
 - **Wrong road, missing place or traffic light?** Fix it on [OpenStreetMap](https://www.openstreetmap.org),
   which Mana reads from, and everyone benefits.
 - **Support Mana:** it's free with no ads; donations pay for live traffic and the servers.
-  Use **☕ Support Mana** in the app (DuitNow) or [Ko-fi](https://ko-fi.com/ycryga).
+  Use **☰ → Support Mana** in the app (DuitNow) or [Ko-fi](https://ko-fi.com/ycryga).
 
 See [what's new](CHANGELOG.md) in each release.
 

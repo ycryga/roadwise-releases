@@ -1,7 +1,7 @@
 # Mana roadmap
 
 What's being worked on, what's next, and ideas for later. Plans change with what drivers ask for:
-send yours with **💡 Request a feature** in the app or in the [browser version](https://ycryga.github.io/roadwise-releases/).
+send yours with **☰ → Request a feature** in the app or in the [browser version](https://ycryga.github.io/roadwise-releases/).
 What's already out is in the [changelog](CHANGELOG.md).
 
 ## 🚧 Working on now
@@ -15,7 +15,7 @@ What's already out is in the [changelog](CHANGELOG.md).
 
 - **Mana's own routing server**, so routes don't depend on free public servers when many
   people drive with Mana at once.
-- **More in the browser version**: Home and Work, speed cameras, tolls and speed limits.
+- **More in the browser version**: speed cameras, tolls and speed limits.
 - **More accurate arrival times**, using how long drives really take.
 
 ## 💭 Ideas for later
@@ -27,4 +27,4 @@ What's already out is in the [changelog](CHANGELOG.md).
 ## Support
 
 Mana is free, with no ads. Donations (DuitNow or [Ko-fi](https://ko-fi.com/ycryga)) pay for live
-traffic and the servers: **☕ Support Mana** in the app shows this month's goal.
+traffic and the servers: **☰ → Support Mana** in the app shows this month's goal.
