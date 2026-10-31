@@ -33,7 +33,9 @@ const CAR_Y = 0.72;
 const SPEED_ZOOM_STEP = 0.25;
 /** The driving zoom for a speed, as the app: 17 up to 50 km/h, 15.8 at 80, 14.6 from 110. */
 const speedZoom = (kmh) => 17 - (Math.min(110, Math.max(50, kmh)) - 50) * 0.04;
-const TURN_ARROW_BEFORE_M = 30, TURN_ARROW_AFTER_M = 20;
+const TURN_ARROW_BEFORE_M = 30, TURN_ARROW_AFTER_M = 20, MAX_TURN_ARROWS = 20;
+/** Roads drawn this much wider than the map style, so they read at a glance (as the app's ROAD_WIDTH). */
+const ROAD_WIDTH = 2;
 // Kinds of stop offered as tiles while driving, as the app's Places.stopShortcuts.
 const STOP_KINDS = [["petrol", "Petrol station", "fuel"], ["food", "Food", "food"], ["toilet", "Toilet", "toilet"],
   ["rest area", "Rest area", "rest-area"], ["convenience store", "Convenience store", "store"], ["mosque", "Mosque", "mosque"]];
@@ -156,13 +158,18 @@ map.on("load", () => {
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim(); // Named colours in style.css.
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
+  // Roads wider than the style draws them (railways and footpaths stay as they are).
+  for (const l of map.getStyle().layers) {
+    if (l.type !== "line" || l["source-layer"] !== "transportation" || UNROADS.some((w) => l.id.includes(w))) continue;
+    map.setPaintProperty(l.id, "line-width", scaleWidth(map.getPaintProperty(l.id, "line-width") ?? 1, ROAD_WIDTH));
+  }
   for (const s of ["alts", "route", "driven", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": css("--mana-route-driven"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": css("--mana-route-casing"), "line-width": 11 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": css("--mana-route"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": css("--mana-route-casing"), "line-width": 13 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": css("--mana-route"), "line-width": 8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
   // The destination: a pin standing on the spot, and the ring it sends out when it drops (hidden at rest).
   map.addLayer({ id: "stops", type: "circle", source: "stops", paint: { "circle-color": "#fff", "circle-radius": 11, "circle-stroke-color": css("--mana-via"), "circle-stroke-width": 3 } });
@@ -267,12 +274,30 @@ function turnArrowLine(line, at, before, after) {
   return [...walk(-1, before).reverse(), line[i], ...walk(1, after)];
 }
 
-/** One white arrow at [step]'s turn; none for going straight on, departing or arriving, or with no step. */
+/**
+ * A white arrow at every turn still ahead, from [step] (the next one) on, so coming turns show well
+ * before reaching them; none for going straight on or arriving. No step clears them.
+ */
 function drawTurnArrow(step) {
   const r = state.nav?.route;
-  const turns = step && r && !["depart", "arrive"].includes(step.type) && step.modifier !== "straight";
-  const line = turns ? turnArrowLine(r.points, step.at, TURN_ARROW_BEFORE_M, TURN_ARROW_AFTER_M) : [];
-  map.getSource("turn")?.setData(line.length < 2 ? empty : fc([lineFeature(line), pointFeature(line.at(-1), { bearing: bearing(line.at(-2), line.at(-1)) })]));
+  const from = r && step ? r.steps.indexOf(step) : -1;
+  const isTurn = (s) => !["depart", "arrive"].includes(s.type) && s.modifier !== "straight";
+  const ahead = from < 0 ? [] : r.steps.slice(from).filter(isTurn).slice(0, MAX_TURN_ARROWS);
+  const lines = ahead.map((s) => turnArrowLine(r.points, s.at, TURN_ARROW_BEFORE_M, TURN_ARROW_AFTER_M)).filter((l) => l.length >= 2);
+  map.getSource("turn")?.setData(fc(lines.flatMap((l) => [lineFeature(l), pointFeature(l.at(-1), { bearing: bearing(l.at(-2), l.at(-1)) })])));
+}
+
+/**
+ * A style width [factor] times wider (as the app's scaleWidth): a zoom curve's outputs are scaled, as are
+ * the older {stops} functions; anything else is multiplied whole.
+ */
+function scaleWidth(w, factor) {
+  const scale = (v) => (typeof v === "number" ? v * factor : ["*", factor, v]);
+  if (typeof w === "number") return w * factor;
+  if (w && Array.isArray(w.stops)) return { ...w, stops: w.stops.map(([z, v]) => [z, scale(v)]) };
+  if (Array.isArray(w) && w[0] === "interpolate") return w.map((v, i) => (i >= 4 && i % 2 === 0 ? scale(v) : v));
+  if (Array.isArray(w) && w[0] === "step") return w.map((v, i) => (i >= 2 && i % 2 === 0 ? scale(v) : v));
+  return w == null ? w : ["*", factor, w];
 }
 
 /** While driving the map shows only what matters on the road: shop, park and other place icons go. */
@@ -622,8 +647,8 @@ function showResults(places, near, fit = false) {
   list.style.maxHeight = "";
   if (fit && places.length) {
     const cap = innerHeight * 0.36;
-    let h = 8; // the list's padding
-    for (const row of list.children) { if (h + row.offsetHeight > cap && h > 8) break; h += row.offsetHeight; }
+    let h = 4; // the list's top padding (the bottom one would show a sliver of the next row)
+    for (const row of list.children) { if (h + row.offsetHeight > cap && h > 4) break; h += row.offsetHeight; }
     list.style.maxHeight = `${h}px`;
   }
 }
@@ -1340,7 +1365,8 @@ function showMenu() {
     row("coffee", "Support Mana", donations ? `RM${donations.raised_rm} of RM${donations.goal_rm}` : null, showSupport),
     row("lightbulb", "Request a feature", null, requestFeature),
     group("About"),
-    row("info", "About, privacy & licences", null, () => open("https://github.com/ycryga/roadwise-releases/blob/main/PRIVACY.md", "_blank", "noopener")),
+    // The app's About text (credits, privacy, licences), published next to the site by publish-web.sh.
+    row("info", "About, privacy & licences", null, () => open("about.txt", "_blank", "noopener")),
   );
 }
 

@@ -4,8 +4,9 @@
   --mana-text-secondary: #5F6368;
   --mana-surface: #FFFFFF;
   --mana-divider: #ECEDF0;
-  --mana-positive: #1E8E3E;
+  --mana-positive: #137333;
   --mana-danger: #CE1126;
+  --mana-danger-text: #CE1126; /* red words (Exit); lighter at night to read on the dark pill */
   --mana-accent: #2F6FED;  /* filled buttons; --mana-primary is for blue text and icons */
   --mana-surface-variant: #F1F3F4;
   --mana-primary-container: #E8F0FE;
@@ -40,7 +41,7 @@
   --mana-selected: #24375A;
   --mana-field-line: #4A5058;
   --mana-page: #1E2227;
-  --mana-danger: #F04A5A;
+  --mana-danger-text: #FF9AA2;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -156,7 +157,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* Calm grey pills (Add stop, Exit); Exit's red is only in its label. */
 .pill { display: flex; align-items: center; gap: 6px; flex: none; min-height: 52px; border: 0; border-radius: 26px; padding: 0 16px; background: var(--mana-surface-variant); color: var(--mana-text); font-size: 14px; font-weight: 700; }
 .pill .ico { width: 20px; height: 20px; }
-.pill.exit { color: var(--mana-danger); }
+.pill.exit { color: var(--mana-danger-text); }
 .plain { border: 0; background: none; color: var(--mana-primary); font-weight: 600; padding: 10px; }
 
 #sheet { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 16px; z-index: 3; text-align: center; }
@@ -177,7 +178,11 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* A tile: the colour as a tint and a border, its icon in the colour, its word in ink. */
 .tile { min-height: 84px; border: 2px solid var(--tile); border-radius: 20px; padding: 10px 4px; background: color-mix(in srgb, var(--tile) 14%, transparent);
   color: var(--mana-text); font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-.tile svg { width: 34px; height: 34px; fill: var(--tile); }
+.tile svg { width: 34px; height: 34px; fill: color-mix(in srgb, var(--tile) 75%, black); }
+/* Icons a little darker by day and lighter at night, so each stands out from its tint (3:1 or more). */
+:root.night .tile svg { fill: color-mix(in srgb, var(--tile) 55%, white); }
+/* Add stop and Exit are used while moving: 64px. */
+#navInfo .pill { min-height: 64px; }
 
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 230px); max-width: calc(100% - 32px); background: #323232; color: #fff; padding: 10px 16px; border-radius: 18px; z-index: 4; font-size: 15px; text-align: center; }
 #install { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 6px 16px 4px; z-index: 5; font-size: 15px; }
