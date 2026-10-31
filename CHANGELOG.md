@@ -3,6 +3,19 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.16.0 — 2026-10-31
+
+- **Easier to read the road**: roads are drawn twice as wide, the route line is thicker, and while
+  you drive every turn ahead shows a white arrow, so you see the next few turns before you reach
+  them.
+- **Easier to read for everyone**: a few colours were too faint and are now stronger (grey hints,
+  green route labels, the red **Exit** at night), report icons stand out from their tiles day and
+  night, and **Add stop** and **Exit** are bigger to tap while driving. Checked at night and with
+  large text.
+- **Credits**: About now names every service a route uses (OSRM, Valhalla, Overpass, Photon), and
+  the browser version has the same About page.
+- The same in the browser version.
+
 ## 0.15.0 — 2026-10-31
 
 - **Browser version**: Mana in the browser now looks and works like the app. The same navy and red
