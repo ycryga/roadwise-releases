@@ -119,6 +119,13 @@ function snap(p, line) {
   if (best) best.bearing = bearing(line[best.segment], line[best.segment + 1]);
   return best;
 }
+/** The part of [line] between where [from] and then [to] land on it (the end is looked for after the start). */
+function along(line, from, to) {
+  const a = snap(from, line);
+  const b = a && snap(to, line.slice(a.segment));
+  if (!b) return [];
+  return [a.point, ...line.slice(a.segment + 1, a.segment + b.segment + 1), b.point];
+}
 const angleBetween = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 
 // --- Formatting ---
@@ -861,7 +868,9 @@ function drawRoutes() {
   const remaining = segment >= 0 ? [progress.point, ...r.points.slice(segment + 1)] : r?.points;
   map.getSource("driven")?.setData(driven.length > 1 ? fc([lineFeature(driven)]) : empty);
   map.getSource("route")?.setData(remaining ? lineFeature(remaining) : empty);
-  map.getSource("slow")?.setData(fc((r?.slow ?? []).map((s) => lineFeature(s.points, { color: s.color }))));
+  // Drawn on the route's own line: TomTom's version of the road runs a little beside it.
+  map.getSource("slow")?.setData(fc((r?.slow ?? []).map((s) => along(r.points, s.points[0], s.points.at(-1)))
+    .map((points, i) => points.length >= 2 && lineFeature(points, { color: r.slow[i].color })).filter(Boolean)));
   map.getSource("dest")?.setData(state.destination ? fc([pointFeature(state.destination.at)]) : empty);
   map.getSource("stops")?.setData(fc(state.stops.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
 }
@@ -1025,6 +1034,8 @@ function startNavigation() {
   $("speedView").hidden = false;
   $("go").hidden = true;
   showPlaceIcons(false);
+  $("trafficButton").hidden = true;
+  showTraffic(state.traffic);
   // Shown from the start; each update moves it on to the next turn.
   drawTurnArrow(r.steps.find((x) => !["depart", "arrive"].includes(x.type)));
   drawRoutes();
@@ -1046,6 +1057,8 @@ function stopNavigation() {
   $("go").hidden = !!state.origin;
   $("sheet").hidden = true;
   showPlaceIcons(true);
+  $("trafficButton").hidden = false;
+  showTraffic(state.traffic);
   drawTurnArrow(null);
   map.easeTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
   drawRoutes();
@@ -1217,7 +1230,9 @@ function showTraffic(on) {
   if (!map.getSource("alts")) return; // Not loaded yet; the load handler shows it.
   if (map.getLayer("traffic")) map.removeLayer("traffic");
   if (map.getSource("traffic")) map.removeSource("traffic");
-  if (!on) return;
+  // Not while driving: the route shows its own slow stretches, and TomTom's lines (offset from the
+  // map's roads, one per direction on divided roads) would peek out beside it as a second line.
+  if (!on || state.nav) return;
   map.addSource("traffic", { type: "vector", tiles: [`${TRAFFIC}?tile={z}/{x}/{y}`], minzoom: TRAFFIC_MIN_ZOOM, maxzoom: 18, attribution: "Traffic © TomTom" });
   map.addLayer({ id: "traffic", type: "line", source: "traffic", "source-layer": "Traffic flow", minzoom: TRAFFIC_MIN_ZOOM,
     filter: ["<", ["get", "traffic_level"], TRAFFIC_SLOW_BELOW],
