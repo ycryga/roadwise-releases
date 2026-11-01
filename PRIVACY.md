@@ -30,7 +30,8 @@ To work, Mana asks these services for things. Each gets only what that request n
 | Reports you choose to send (kind and position) and "still there?" answers | Mana's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
 | Places you add for everyone (name, kind and position) and "not here" answers | Mana's database on Supabase | Other drivers finding them in search; they're public and kept |
 | **Only if you tick it when adding a place**: its name, kind and position | [OpenStreetMap](https://www.openstreetmap.org) as an anonymous public note | A mapper checking it and adding it to the map |
-| Feature requests you type and send (only the text, and whether it came from the app or the web) | Mana's database on Supabase | Deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
+| Road features you report (kind, position, which way you faced, a speed limit if you pick one) and your "is it here?" Yes / No answers, with a random ID the app made (not linked to you) | Mana's database on Supabase | Warning every driver about cameras, bumps and U-turns once other drivers agree, and hiding mapped ones drivers say are gone; kept |
+| Bug reports and ideas you type and send (only the text, the app version, and whether it came from the app or the web) | Mana's database on Supabase | Fixing bugs and deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Mana's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Mana's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
 | **Only if you say yes to "Share stop times"**: where you waited while navigating | Mana's database on Supabase | Better arrival times for everyone |
@@ -60,7 +61,7 @@ next drive starts or the app closes.
 
 [The browser version](https://ycryga.github.io/roadwise-releases/) sends the same requests as the
 app, to the same services, for the features it has (search, routes, live traffic, reports, the
-traffic map). It stores Home and Work shortcuts, whether the traffic map is on, and whether you have seen the first tip in your browser. Home and Work stay on that browser and aren't sent to Mana or synced to other devices. It doesn't share stop times or arrival times.
+traffic map, road features). It stores Home and Work shortcuts, your vehicle, a random ID for road feature reports (as the app's), whether the traffic map is on, and whether you have seen the first tip in your browser. Home and Work stay on that browser and aren't sent to Mana or synced to other devices. It doesn't share stop times or arrival times.
 
 ## Location
 

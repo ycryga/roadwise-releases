@@ -3,6 +3,20 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.18.0 — 2026-11-01
+
+- **Report road features**: tell Mana about speed cameras, speed bumps, U-turn points and speed limit
+  signs. While driving, tap **Report** → **Road feature**; when parked, **Menu** → **Report a road
+  feature** and tap the spot. Cameras and limits ask the speed with big number signs.
+- **Drivers confirm each other**: a new report shows for everyone once other drivers agree. Passing
+  one, Mana asks "Speed camera here?" with **Yes** and **No**. Confirmed cameras and bumps are warned
+  about like mapped ones, and a confirmed limit sign fills in where the map has no speed limit.
+- **Your say on the map too**: Mana also asks about mapped cameras, bumps and crossings, and about
+  roadworks and closures from live traffic, so ones that are gone stop showing.
+- **Your vehicle**: **Menu** → **Your vehicle** picks what's drawn as you while navigating: Saloon,
+  Hatchback, SUV, MPV, Pickup, Sports car or the Mana arrow.
+- The same in the browser version (it asks only about drivers' own reports).
+
 ## 0.17.3 — 2026-11-01
 
 - **Directions in the notification**: while you drive, the notification shows the next turn, how far
