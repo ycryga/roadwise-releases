@@ -94,6 +94,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .menuRow { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 8px 6px; border: 0; border-radius: 12px; background: none; color: var(--mana-text); text-align: left; font-size: 16px; }
 .menuRow .ico { color: var(--mana-text-secondary); }
 .menuRow .label { flex: 1; }
+.menuRow .vehicle { width: 44px; height: 44px; }
 .menuRow .value { color: var(--mana-primary); font-size: 14px; font-weight: 700; }
 .pill.wide { grid-column: span 3; justify-content: flex-start; font-size: 16px; }
 
@@ -178,6 +179,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* A tile: the colour as a tint and a border, its icon in the colour, its word in ink. */
 .tile { min-height: 84px; border: 2px solid var(--tile); border-radius: 20px; padding: 10px 4px; background: color-mix(in srgb, var(--tile) 14%, transparent);
   color: var(--mana-text); font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.tile .limitSign { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; border: 5px solid #CE1126; background: #fff; color: #000; font-size: 22px; font-weight: 700; box-sizing: border-box; }
 .tile svg { width: 34px; height: 34px; fill: color-mix(in srgb, var(--tile) 75%, black); }
 /* Icons a little darker by day and lighter at night, so each stands out from its tint (3:1 or more). */
 :root.night .tile svg { fill: color-mix(in srgb, var(--tile) 55%, white); }

@@ -43,7 +43,9 @@ To work, it sends the following to these services:
   report, with a random ID made by the app: Mana's database on Supabase. Reports stop showing
   on the map after a few hours but are kept in the database. The area of your trip, to read other
   drivers' usual waits there (nothing about you is sent).
-- Feature requests you send: only the text you type, on Mana's database on Supabase.
+- Road features you report (kind, position, which way you faced, a limit if picked) and your
+  "is it here?" answers, with the same random ID: Mana's database on Supabase, kept.
+- Bug reports and ideas you send: only the text you type and the app version, on Mana's database on Supabase.
 - Places you add for everyone: the name, kind and position, on Mana's database on Supabase, and "not here" answers. If you tick it, the same goes to OpenStreetMap as an anonymous public note.
 - Only if you say yes to "Share stop times" (asked once, on your first drive): where you waited while navigating (position rounded to
   about 11 m, direction, time of week in eight bands, how long), with no ID, trip or date, and

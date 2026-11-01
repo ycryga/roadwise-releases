@@ -94,7 +94,28 @@ const state = {
   traffic: localStorage.getItem("traffic") === "1",
   lastSearch: 0,
   addingPlace: false, // the next tap on the map picks where a missing place is
+  reportingFeature: false, // the next tap on the map is where a road feature is (Menu → Report a road feature)
+  features: [], featuresWarned: new Set(), featuresAsked: new Set(), featuresClosest: {},
 };
+
+// Permanent road features drivers report (docs/road-reports/PLAN.md, phase 1), as the app's RoadFeatureType.
+const ROAD_FEATURES = [
+  { key: "speed_camera", label: "Camera", glyph: "speed_camera", color: "#5F3DC4", limit: true, warn: 600, spoken: "Speed camera ahead", ask: "Speed camera here?" },
+  { key: "speed_bump", label: "Bump", glyph: "speed_bump", color: "#E37400", limit: false, warn: 150, spoken: "Speed bump ahead", ask: "Speed bump here?" },
+  { key: "u_turn", label: "U-turn", glyph: "u_turn", color: "#2457E6", limit: false, warn: 0, spoken: "", ask: "U-turn here?" },
+  { key: "speed_limit", label: "Limit", glyph: "speed_limit", color: "#CE1126", limit: true, warn: 0, spoken: "", ask: "Speed limit sign here?" },
+];
+const SPEED_LIMITS = [30, 40, 50, 60, 70, 80, 90, 100, 110];
+/** A feature further than this from the route is on another road (as the app's FEATURE_ON_ROUTE_METERS). */
+const FEATURE_ON_ROUTE_METERS = 35;
+/** A random id made once per browser, so one browser counts as one driver (as the app's install id). */
+function deviceId() {
+  try {
+    let id = localStorage.getItem("mana.device");
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem("mana.device", id); }
+    return id;
+  } catch { return crypto.randomUUID(); }
+}
 
 // --- Geometry ---
 
@@ -205,6 +226,9 @@ map.on("load", () => {
     map.on("click", `${s}-clusters`, (e) => map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom() + 2, CLUSTER_MAX_ZOOM + 1) }));
   }
   map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM, filter: ["!", ["has", "point_count"]],
+    layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
+  map.addSource("features", { type: "geojson", data: empty });
+  map.addLayer({ id: "features", type: "symbol", source: "features", minzoom: 12,
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "reports", type: "symbol", source: "reports", filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
@@ -323,15 +347,25 @@ function showPlaceIcons(on) {
   for (const l of map.getStyle()?.layers ?? []) if (l["source-layer"] === "poi") map.setLayoutProperty(l.id, "visibility", on ? "visible" : "none");
 }
 
-/** The same top-down saloon used by Android, facing north before GPS heading rotation. */
-function carImage() {
-  const size = 96, g = Object.assign(document.createElement("canvas"), { width: size, height: size }).getContext("2d");
+/** The vehicle chosen in Menu → Your vehicle (saved in this browser); the saloon unless changed. */
+const vehicle = () => { try { return window.VEHICLES?.[localStorage.getItem("mana.vehicle")] ? localStorage.getItem("mana.vehicle") : "saloon"; } catch { return "saloon"; } };
+const vehicleLabel = (kind) => window.VEHICLES?.[kind]?.label ?? "Saloon";
+
+/** The chosen vehicle seen from above, facing north before GPS heading rotation (as Android's ic_nav_car*). */
+function carImage(kind = vehicle()) {
+  const g = carCanvas(kind).getContext("2d");
+  return g.getImageData(0, 0, 96, 96);
+}
+function carCanvas(kind) {
+  const size = 96, canvas = Object.assign(document.createElement("canvas"), { width: size, height: size }), g = canvas.getContext("2d");
   g.scale(2, 2);
   const draw = (d, fill, stroke = null, width = 1) => {
     const p = new Path2D(d);
     if (fill) { g.fillStyle = fill; g.fill(p); }
     if (stroke) { g.strokeStyle = stroke; g.lineWidth = width; g.lineJoin = "round"; g.stroke(p); }
   };
+  const other = window.VEHICLES?.[kind];
+  if (other) { for (const p of other.paths) draw(p.d, p.fill, p.stroke, p.width); return canvas; }
   draw("M15.5 16.6 13.4 17.4V19.2h2.1z M32.5 16.6 34.6 17.4V19.2h-2.1z", "#B71C1C", "#fff", .6);
   draw("M17.3 3.6h13.4q1.8 0 1.8 1.8v37.2q0 1.8-1.8 1.8H17.3q-1.8 0-1.8-1.8V5.4q0-1.8 1.8-1.8z", "#C62828", "#fff", 1.4);
   draw("M16.2 2.4h15.6v1.9H16.2z M16.2 43.7h15.6v1.9H16.2z", "#CFD3D8");
@@ -341,7 +375,26 @@ function carImage() {
   draw("M17.4 16.6h13.2l-1.3 5H18.7z M18.7 21.6h10.6v11.6H18.7z M18.7 33.2h10.6l1.1 4H17.6z", "#1F2A36");
   draw("M16.5 22l1.6.3v10.2l-1.6.3z M31.5 22l-1.6.3v10.2l1.6.3z", "#1F2A36");
   draw("M16.4 41.4h3.8v1.8h-3.8z M27.8 41.4h3.8v1.8h-3.8z", "#FF8A65");
-  return g.getImageData(0, 0, size, size);
+  return canvas;
+}
+
+/** The vehicles to drive as, each in its own colours; the one in use is marked. Back to the Menu after. */
+function chooseVehicle() {
+  const now = vehicle();
+  showSheet("Your vehicle", ...["saloon", ...Object.keys(window.VEHICLES ?? {})].map((kind) => {
+    const b = document.createElement("button");
+    b.className = "menuRow";
+    b.innerHTML = `<img class="vehicle" alt=""><span class="label"></span><span class="value"></span>`;
+    b.querySelector("img").src = carCanvas(kind).toDataURL();
+    b.querySelector(".label").textContent = vehicleLabel(kind);
+    b.querySelector(".value").textContent = kind === now ? "In use" : "";
+    b.onclick = () => {
+      try { localStorage.setItem("mana.vehicle", kind); } catch { return toast("Couldn't save it in your browser"); }
+      if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage(kind));
+      showMenu();
+    };
+    return b;
+  }));
 }
 
 /**
@@ -497,6 +550,7 @@ function onLocation() {
     const u = navUpdate(nav, state.here);
     if (u.snapped) shown = u.snapped;
     showNav(u);
+    checkFeatures(state.here);
   }
   map.getSource("me")?.setData(fc([pointFeature(shown, { heading: state.heading ?? 0 })]));
   updateTheme();
@@ -1049,6 +1103,7 @@ function startNavigation() {
   renderTrip();
   keepAwake(true);
   say(instructionFor(r.steps[0]));
+  loadFeatures(r.points);
   onLocation();
 }
 
@@ -1278,14 +1333,15 @@ async function refreshIncidents() {
   map.getSource("incidents").setData(fc(state.incidents.map((inc, i) => pointFeature(inc.at, { i, icon: badge(inc.glyph, inc.color) }))));
 }
 
-async function supabase(method, path, body) {
+/** [read]: a POST that answers with rows (an rpc function), not just "done". */
+async function supabase(method, path, body, read = false) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
-    headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, ...(body ? { "content-type": "application/json", prefer: "return=minimal" } : {}) },
+    headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, ...(body ? { "content-type": "application/json", ...(read ? {} : { prefer: "return=minimal" }) } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-  return body ? null : res.json();
+  return body && !read ? null : res.json();
 }
 
 async function refreshReports() {
@@ -1308,8 +1364,88 @@ const closeTile = { sprite: "close", label: "Close", color: NEUTRAL_TILE, pick: 
 $("reportButton").onclick = () => {
   if (!state.here) { startLocation(); return toast("Finding your location…"); }
   showTiles("Report", [...REPORT_TYPES.map((t) => ({ glyph: t.glyph, label: t.short, color: t.color,
-    pick: () => (t.subtypes.length ? showSubtypes(t) : sendReport(t, null)) })), closeTile]);
+    pick: () => (t.subtypes.length ? showSubtypes(t) : sendReport(t, null)) })),
+    { glyph: "road_feature", label: "Road feature", color: "#002B7F", pick: () => showFeatureTiles(null) }, closeTile]);
 };
+
+/** A fixed thing on the road: where you are now ([at] null), or a spot tapped on the map. */
+function showFeatureTiles(at) {
+  showTiles("What's on the road?", [...ROAD_FEATURES.map((f) => ({ glyph: f.glyph, label: f.label, color: f.color,
+    pick: () => (f.limit ? showLimitTiles(f, at) : sendFeature(f, at, null)) })),
+    at ? closeTile : { sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: $("reportButton").onclick }]);
+}
+/** The limit as big signs; a camera's limit can be left out. */
+function showLimitTiles(f, at) {
+  showTiles("Speed limit (km/h)", [...SPEED_LIMITS.map((kmh) => ({ sign: kmh, label: String(kmh), color: f.color, pick: () => sendFeature(f, at, kmh) })),
+    ...(f.key === "speed_camera" ? [{ glyph: f.glyph, label: "Not sure", color: f.color, pick: () => sendFeature(f, at, null) }] : []),
+    { sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: () => showFeatureTiles(at) }]);
+}
+async function sendFeature(f, at, limit) {
+  $("sheet").hidden = true;
+  const [lng, lat] = at ?? state.here;
+  try {
+    await supabase("POST", "road_features", { kind: f.key, lat, lng, heading: !at && state.heading != null ? Math.round(state.heading) % 360 : null,
+      value: limit, device_id: deviceId() });
+    toast(`Reported: ${f.label}. Other drivers will confirm it.`);
+  } catch (e) {
+    toast(`Couldn't send it: ${e.message}`);
+  }
+}
+function startReportingFeature() {
+  state.reportingFeature = true;
+  toast("Tap the spot on the map");
+}
+
+/** Mana's own road features around [points] (a route), with whether they're confirmed yet. */
+async function loadFeatures(points) {
+  state.features = []; state.featuresWarned = new Set(); state.featuresAsked = new Set(); state.featuresClosest = {};
+  map.getSource("features")?.setData(empty);
+  if (!points?.length) return;
+  const lngs = points.map((p) => p[0]), lats = points.map((p) => p[1]), pad = 0.01;
+  const [s, n, w, e] = [Math.min(...lats) - pad, Math.max(...lats) + pad, Math.min(...lngs) - pad, Math.max(...lngs) + pad];
+  const found = [];
+  for (let lat = s; lat < n; lat += 1) for (let lng = w; lng < e; lng += 1) {
+    const rows = await supabase("POST", "rpc/road_features_in", { south: lat, west: lng, north: Math.min(lat + 1, n), east: Math.min(lng + 1, e) }, true).catch(() => []);
+    for (const r of rows) {
+      const kind = ROAD_FEATURES.find((f) => f.key === r.kind);
+      if (kind && !found.some((x) => x.id === r.id)) found.push({ id: r.id, kind, at: [r.lng, r.lat], limit: r.value, confirmed: r.confirmed });
+    }
+  }
+  // Only the ones on the route: a feature on a road you're not taking isn't worth a word.
+  state.features = found.filter((f) => snap(f.at, points)?.meters <= FEATURE_ON_ROUTE_METERS);
+  map.getSource("features")?.setData(fc(state.features.filter((f) => f.confirmed && f.kind.key !== "speed_limit")
+    .map((f) => pointFeature(f.at, { icon: badge(f.kind.glyph, f.kind.color) }))));
+}
+
+/** While driving: say confirmed cameras and bumps ahead; after passing an unconfirmed one, ask. */
+function checkFeatures(here) {
+  if (!state.nav || !state.features.length) return;
+  for (const f of state.features) {
+    const d = distance(here, f.at);
+    if (f.confirmed && f.kind.spoken && !state.featuresWarned.has(f.id) && d < f.kind.warn && (f.kind.key !== "speed_bump" || state.speed * 3.6 >= 20)) {
+      state.featuresWarned.add(f.id);
+      say(f.kind.spoken + (f.kind.key === "speed_camera" && f.limit ? `, limit ${f.limit}` : ""));
+      return;
+    }
+    if (f.confirmed || state.featuresAsked.has(f.id)) continue;
+    const closest = Math.min(d, state.featuresClosest[f.id] ?? d);
+    state.featuresClosest[f.id] = closest;
+    if (closest < 60 && d > closest + 80) {
+      state.featuresAsked.add(f.id);
+      askFeature(f);
+      return;
+    }
+  }
+}
+function askFeature(f) {
+  const answer = (yes) => async () => {
+    $("sheet").hidden = true;
+    try { await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, device_id: deviceId() }); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
+  };
+  showTiles(f.kind.ask, [{ glyph: f.kind.glyph, label: "Yes", color: f.kind.color, pick: answer(true) },
+    { sprite: "close", label: "No", color: NEUTRAL_TILE, pick: answer(false) }]);
+  setTimeout(() => { if ($("sheetTitle").textContent === f.kind.ask) $("sheet").hidden = true; }, 15000);
+}
 function showSubtypes(t) {
   const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
   if (t.key === "hazard") tiles.push({ glyph: t.glyph, label: "Other", color: t.color, pick: () => sendReport(t, null) });
@@ -1323,10 +1459,14 @@ function showTiles(title, tiles) {
     const b = document.createElement("button");
     b.className = "tile";
     b.style.setProperty("--tile", t.color);
-    b.innerHTML = t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
+    // A speed limit tile is the number in a red ring, like the real sign.
+    b.innerHTML = t.sign ? `<b class="limitSign"></b>` : t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
       : `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
-    if (!t.sprite) b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
-    b.querySelector("span").textContent = t.label;
+    if (t.sign) { b.querySelector("b").textContent = t.sign; b.setAttribute("aria-label", `${t.sign} km/h`); }
+    else {
+      if (!t.sprite) b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
+      b.querySelector("span").textContent = t.label;
+    }
     b.onclick = t.pick;
     return b;
   }));
@@ -1415,7 +1555,9 @@ function showMenu() {
     return b;
   };
   showSheet("Menu",
-    group("Help other drivers"), row("add-location", "Add a place missing from the map", null, startAddingPlace),
+    group("Driving"), row("car", "Your vehicle", vehicleLabel(vehicle()), chooseVehicle),
+    group("Help other drivers"), row("road-feature", "Report a road feature", null, startReportingFeature),
+    row("add-location", "Add a place missing from the map", null, startAddingPlace),
     group("Support"),
     // Progress shows once something has been given: "RM0 of RM300" reads as nobody cares.
     row("coffee", "Support Mana", donations?.raised_rm > 0 ? `RM${donations.raised_rm} of RM${donations.goal_rm}` : null, showSupport),
@@ -1471,6 +1613,7 @@ map.on("click", (e) => {
     saveHomeWork(state.savingSlot, { name: `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`, detail: "Map pin", at: [lng, lat] });
     return;
   }
+  if (state.reportingFeature) { state.reportingFeature = false; return showFeatureTiles(e.lngLat.toArray()); }
   if (!state.addingPlace) return;
   state.addingPlace = false;
   addMissingPlace(e.lngLat.toArray());
