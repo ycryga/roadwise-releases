@@ -552,15 +552,40 @@ function onLocation() {
     showNav(u);
     checkFeatures(state.here);
   }
-  map.getSource("me")?.setData(fc([pointFeature(shown, { heading: state.heading ?? 0 })]));
+  moveCar(shown, state.heading ?? 0);
   updateTheme();
   if (state.following) {
     // Driving: closer in town, further out on highways, with the car low so more of the road ahead shows.
     const want = speedZoom(state.speed * 3.6);
     const zoom = !nav ? map.getZoom() : Math.abs(want - map.getZoom()) >= SPEED_ZOOM_STEP ? want : map.getZoom();
     map.easeTo({ center: shown, bearing: nav && state.heading != null ? state.heading : map.getBearing(), pitch: nav ? 50 : 0,
-      zoom, padding: { top: nav ? innerHeight * (2 * CAR_Y - 1) : 0, bottom: 0, left: 0, right: 0 }, duration: 900 });
+      zoom, padding: { top: nav ? innerHeight * (2 * CAR_Y - 1) : 0, bottom: 0, left: 0, right: 0 },
+      duration: CAR_GLIDE_MS, easing: (t) => t }); // linear, as the car's glide, so the car stays put on screen
   }
+}
+
+/**
+ * The car glides from where it is to each new fix, in step with the camera, instead of jumping once a
+ * second (phones give about one fix a second). Big jumps and reduced motion move it at once.
+ */
+const CAR_GLIDE_MS = 1000;
+let car = null, carFrame = 0;
+function carAt(now) {
+  const t = Math.min(1, (now - car.start) / CAR_GLIDE_MS);
+  const turn = ((car.toHeading - car.fromHeading + 540) % 360) - 180; // the short way round
+  return { at: car.from.map((v, i) => v + (car.to[i] - v) * t), heading: (car.fromHeading + turn * t + 360) % 360 };
+}
+function moveCar(at, heading) {
+  const now = performance.now();
+  const from = car && !reducedMotion() ? carAt(now) : null;
+  const glide = from && distance(from.at, at) < 200;
+  car = { from: glide ? from.at : at, to: at, fromHeading: glide ? from.heading : heading, toHeading: heading, start: now };
+  if (!carFrame) drawCar();
+}
+function drawCar() {
+  const now = performance.now(), { at, heading } = carAt(now);
+  map.getSource("me")?.setData(fc([pointFeature(at, { heading })]));
+  carFrame = now - car.start < CAR_GLIDE_MS ? requestAnimationFrame(drawCar) : 0;
 }
 
 $("locate").onclick = () => {
@@ -802,7 +827,7 @@ function showSaveState() {
 }
 $("placeSave").onclick = $("routeSave").onclick = () => {
   const choice = (slot, label) => Object.assign(document.createElement("button"), { className: "pill wide",
-    innerHTML: `${icon(slot)}<span>${label}</span>`, onclick: () => { $("sheet").hidden = true; saveHomeWork(slot, state.destination); } });
+    innerHTML: `${icon(slot)}<span>${label}</span>`, onclick: () => { hideCard($("sheet")); saveHomeWork(slot, state.destination); } });
   showSheet("Save as", choice("home", "Home"), choice("work", "Work"));
 };
 $("placeClose").onclick = () => searchReturn ? history.back() : $("clear").onclick();
@@ -817,7 +842,7 @@ $("placeFlag").onclick = () => {
     send.disabled = true;
     try {
       await supabase("POST", "driver_place_flags", { place_id: place.driverId });
-      $("sheet").hidden = true;
+      hideCard($("sheet"));
       toast("Thanks, noted");
     } catch (e) {
       send.disabled = false;
@@ -1117,7 +1142,7 @@ function stopNavigation() {
   $("navInfo").hidden = true;
   $("speedView").hidden = true;
   $("go").hidden = !!state.origin;
-  $("sheet").hidden = true;
+  hideCard($("sheet"));
   showPlaceIcons(true);
   $("trafficButton").hidden = false;
   showTraffic(state.traffic);
@@ -1169,6 +1194,13 @@ function navUpdate(nav, here) {
     offRoute: nav.off >= OFF_ROUTE_UPDATES, snapped: s && !off && s.meters < 30 ? s.point : null, progress: s, left, secondsLeft };
 }
 
+/** A new turn slides up into the banner, quick enough to read at a glance; the distance count itself doesn't move. */
+function bannerIn() {
+  if (reducedMotion()) return;
+  for (const el of [$("arrow"), $("bannerDistance").parentElement])
+    el.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 180, easing: "cubic-bezier(.2, 0, 0, 1)" });
+}
+
 function showNav(u) {
   const nav = state.nav;
   nav.progress = u.progress;
@@ -1184,7 +1216,7 @@ function showNav(u) {
   $("speedLimit").hidden = limit == null;
   $("speedView").classList.toggle("speeding", limit != null && state.speedKmh != null && state.speedKmh > limit + 5);
   $("arrow").textContent = symbolFor(u.step);
-  if (u.step !== nav.arrowFor) { nav.arrowFor = u.step; drawTurnArrow(u.step); }
+  if (u.step !== nav.arrowFor) { nav.arrowFor = u.step; drawTurnArrow(u.step); bannerIn(); }
   $("bannerDistance").textContent = u.arrived ? "Arrived" : shortDistance(u.dist);
   $("bannerText").textContent = bannerFor(u.step);
   $("then").hidden = !u.then;
@@ -1359,7 +1391,7 @@ async function refreshReports() {
   })));
 }
 
-const closeTile = { sprite: "close", label: "Close", color: NEUTRAL_TILE, pick: () => ($("sheet").hidden = true) };
+const closeTile = { sprite: "close", label: "Close", color: NEUTRAL_TILE, pick: () => (hideCard($("sheet"))) };
 $("reportButton").onclick = () => {
   if (!state.here) { startLocation(); return toast("Finding your location…"); }
   showTiles("Report", [...REPORT_TYPES.map((t) => ({ glyph: t.glyph, label: t.short, color: t.color,
@@ -1380,7 +1412,7 @@ function showLimitTiles(f, at) {
     { sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: () => showFeatureTiles(at) }]);
 }
 async function sendFeature(f, at, limit) {
-  $("sheet").hidden = true;
+  hideCard($("sheet"));
   const [lng, lat] = at ?? state.here;
   try {
     await supabase("POST", "road_features", { kind: f.key, lat, lng, heading: !at && state.heading != null ? Math.round(state.heading) % 360 : null,
@@ -1438,12 +1470,12 @@ function checkFeatures(here) {
 }
 function askFeature(f) {
   const answer = (yes) => async () => {
-    $("sheet").hidden = true;
+    hideCard($("sheet"));
     try { await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, device_id: deviceId() }); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
   };
   showTiles(f.kind.ask, [{ glyph: f.kind.glyph, label: "Yes", color: f.kind.color, pick: answer(true) },
     { sprite: "close", label: "No", color: NEUTRAL_TILE, pick: answer(false) }]);
-  setTimeout(() => { if ($("sheetTitle").textContent === f.kind.ask) $("sheet").hidden = true; }, 15000);
+  setTimeout(() => { if ($("sheetTitle").textContent === f.kind.ask) hideCard($("sheet")); }, 15000);
 }
 function showSubtypes(t) {
   const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
@@ -1470,7 +1502,7 @@ function showTiles(title, tiles) {
     return b;
   }));
   $("sheetClose").hidden = true; // The tiles have their own Close.
-  $("sheet").hidden = false;
+  showCard($("sheet"));
 }
 
 /**
@@ -1479,7 +1511,7 @@ function showTiles(title, tiles) {
  */
 function showStopTiles() {
   const pick = (word) => {
-    $("sheet").hidden = true;
+    hideCard($("sheet"));
     $("banner").hidden = true;
     $("searchBox").hidden = false;
     startPicking("stop", !word);
@@ -1488,10 +1520,10 @@ function showStopTiles() {
   showTiles("Add stop", [...STOP_KINDS.map(([word, label, sprite]) => ({ sprite, label, color: "#2457E6", pick: () => pick(word) })),
     { sprite: "search", label: "Search", color: NEUTRAL_TILE, pick: () => pick(null) }, closeTile]);
 }
-$("sheetClose").onclick = () => ($("sheet").hidden = true);
+$("sheetClose").onclick = () => (hideCard($("sheet")));
 
 async function sendReport(type, sub) {
-  $("sheet").hidden = true;
+  hideCard($("sheet"));
   const [lng, lat] = state.here;
   try {
     await supabase("POST", "reports", { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}) });
@@ -1550,7 +1582,7 @@ function showMenu() {
     b.innerHTML = `${icon(sprite)}<span class="label"></span><span class="value"></span>`;
     b.querySelector(".label").textContent = label;
     b.querySelector(".value").textContent = value ?? "";
-    b.onclick = () => { $("sheet").hidden = true; onclick(); };
+    b.onclick = () => { hideCard($("sheet")); onclick(); };
     return b;
   };
   showSheet("Menu",
@@ -1648,7 +1680,7 @@ function askMissingName(at, kind) {
       add.disabled = false;
       return toast(`Couldn't add it: ${e.message}`);
     }
-    $("sheet").hidden = true;
+    hideCard($("sheet"));
     toast(`Added ${n}`);
     // Only a bonus: the place is already in Mana. Sent blind, as the notes API's answer isn't needed.
     if (osmBox.checked) {
@@ -1665,7 +1697,7 @@ function showSheet(title, ...content) {
   $("sheetTitle").textContent = title;
   $("tiles").replaceChildren(...content);
   $("sheetClose").hidden = false;
-  $("sheet").hidden = false;
+  showCard($("sheet"));
 }
 
 function showSupport() {
@@ -1691,7 +1723,7 @@ function requestFeature() {
     send.disabled = true;
     try {
       await supabase("POST", "feature_requests", { text, source: "web", app_version: window.ROADWISE?.VERSION ?? null });
-      $("sheet").hidden = true;
+      hideCard($("sheet"));
       toast("Thanks! Sent");
     } catch (e) {
       send.disabled = false;

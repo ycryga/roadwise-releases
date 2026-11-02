@@ -150,8 +150,11 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #speedReading small { margin-top: 3px; font-size: 11px; color: #5F6368; }
 /* Above the speed, overlapping only its edge (as the app's SpeedView), so the number stays clear. */
 #speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#speedView.speeding { border-color: var(--mana-danger); background: var(--mana-danger); color: #fff; }
-#speedView.speeding #speedReading small { color: #fff; }
+/* Going over: the bubble flashes red six times, 300 ms each (as the app's SpeedView), then stays red. */
+#speedView.speeding { border-color: var(--mana-danger); background: var(--mana-danger); color: #fff; animation: speedFlash 600ms step-end 3; }
+#speedView.speeding #speedReading small { color: inherit; opacity: .85; }
+@keyframes speedFlash { 50% { border-color: var(--mana-field-line); background: #fff; color: #1B1B1F; } }
+@media (prefers-reduced-motion: reduce) { #speedView.speeding { animation: none; } }
 #navEta { font-size: 28px; font-weight: 700; color: var(--mana-text); }
 #navLeft { color: var(--mana-text-secondary); }
 .primary { flex: 1; border: 0; border-radius: 28px; padding: 14px; background: var(--mana-accent); color: #fff; font-size: 18px; font-weight: 600; }
