@@ -3,6 +3,11 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.18.1 — 2026-11-02
+
+- **Fixed: Mana closing at the destination** when navigation ended right after **Go**, for example
+  when starting at or right next to where you were going.
+
 ## 0.18.0 — 2026-11-01
 
 - **Report road features**: tell Mana about speed cameras, speed bumps, U-turn points and speed limit
