@@ -1182,7 +1182,6 @@ function showNav(u) {
   $("currentSpeed").textContent = state.speedKmh == null ? "–" : String(state.speedKmh);
   $("speedLimit").textContent = limit == null ? "" : String(limit);
   $("speedLimit").hidden = limit == null;
-  $("speedView").classList.toggle("has-limit", limit != null);
   $("speedView").classList.toggle("speeding", limit != null && state.speedKmh != null && state.speedKmh > limit + 5);
   $("arrow").textContent = symbolFor(u.step);
   if (u.step !== nav.arrowFor) { nav.arrowFor = u.step; drawTurnArrow(u.step); }

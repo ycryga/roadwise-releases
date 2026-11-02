@@ -1,1 +1,1 @@
-window.ROADWISE = { SUPABASE_URL: "https://bjqpeaeswxwkjomtreet.supabase.co", SUPABASE_KEY: "sb_publishable_TcmIzFf9NgZ1DGxhAUKiaQ_60YI2dwH", VERSION: "5144846081" };
+window.ROADWISE = { SUPABASE_URL: "https://bjqpeaeswxwkjomtreet.supabase.co", SUPABASE_KEY: "sb_publishable_TcmIzFf9NgZ1DGxhAUKiaQ_60YI2dwH", VERSION: "3a69e4b0eb" };

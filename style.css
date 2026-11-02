@@ -148,8 +148,8 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #speedReading { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 #speedReading strong { font-size: 25px; font-variant-numeric: tabular-nums; }
 #speedReading small { margin-top: 3px; font-size: 11px; color: #5F6368; }
-#speedView.has-limit #speedReading { padding-top: 14px; }
-#speedLimit { position: absolute; z-index: 1; top: -11px; left: 50%; transform: translateX(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Above the speed, overlapping only its edge (as the app's SpeedView), so the number stays clear. */
+#speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 #speedView.speeding { border-color: var(--mana-danger); background: var(--mana-danger); color: #fff; }
 #speedView.speeding #speedReading small { color: #fff; }
 #navEta { font-size: 28px; font-weight: 700; color: var(--mana-text); }
