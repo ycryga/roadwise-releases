@@ -27,10 +27,10 @@ To work, Mana asks these services for things. Each gets only what that request n
 | The path of each route on offer, and the area you're looking at or driving through | Mana's server on Supabase, which asks [TomTom](https://www.tomtom.com) | Live traffic times, slow stretches, speed limits, accidents, roadworks, closures and the traffic map. Answers are shared between phones for two minutes and not kept; TomTom sees Mana's server, not your phone. |
 | What you search for when you press search, with your rough location | Mana's server on Supabase, which asks TomTom | Addresses and shops the free map data doesn't have. Suggestions while you type don't go to TomTom. |
 | A short map link you share to Mana (maps.app.goo.gl) | Google | Finding out where the link points |
-| Reports you choose to send (kind and position) and "still there?" answers | Mana's database on [Supabase](https://supabase.com) | Showing them to other drivers; reports stop showing after a few hours but are kept |
-| Places you add for everyone (name, kind and position) and "not here" answers | Mana's database on Supabase | Other drivers finding them in search; they're public and kept |
+| Reports you choose to send (kind and position) and "still there?" answers, with a random ID the app made (not linked to you) | Mana's database on [Supabase](https://supabase.com) | Showing them to other drivers, and counting your points for driver levels once other drivers agree; reports stop showing after a few hours but are kept |
+| Places you add for everyone (name, kind and position, with the same random ID) and "not here" answers | Mana's database on Supabase | Other drivers finding them in search, and your points once a place stays; they're public and kept (the ID isn't shown) |
 | **Only if you tick it when adding a place**: its name, kind and position | [OpenStreetMap](https://www.openstreetmap.org) as an anonymous public note | A mapper checking it and adding it to the map |
-| Road features you report (kind, position, which way you faced, a speed limit if you pick one) and your "is it here?" Yes / No answers, with a random ID the app made (not linked to you) | Mana's database on Supabase | Warning every driver about cameras, bumps and U-turns once other drivers agree, and hiding mapped ones drivers say are gone; kept |
+| Road features you report (kind, position, which way you faced, a speed limit if you pick one) and your "is it here?" Yes / No answers, with a random ID the app made (not linked to you) | Mana's database on Supabase | Warning every driver about cameras, bumps and U-turns once other drivers agree, hiding mapped ones drivers say are gone, and your points; kept |
 | Bug reports and ideas you type and send (only the text, the app version, and whether it came from the app or the web) | Mana's database on Supabase | Fixing bugs and deciding what to build next. Don't put your name or phone number in them unless you want a reply. |
 | Toll amounts you report, with a random ID the app made (not linked to you) | Mana's database on Supabase | Keeping the toll fares up to date |
 | The area of your trip | Mana's database on Supabase | Reading other drivers' usual waits (nothing about you is sent) |
@@ -61,7 +61,7 @@ next drive starts or the app closes.
 
 [The browser version](https://ycryga.github.io/roadwise-releases/) sends the same requests as the
 app, to the same services, for the features it has (search, routes, live traffic, reports, the
-traffic map, road features). It stores Home and Work shortcuts, your vehicle, a random ID for road feature reports (as the app's), whether the traffic map is on, and whether you have seen the first tip in your browser. Home and Work stay on that browser and aren't sent to Mana or synced to other devices. It doesn't share stop times or arrival times.
+traffic map, road features). It stores Home and Work shortcuts, your vehicle, a random ID for reports, places and road features (as the app's, for spam limits and points), whether the traffic map is on, and whether you have seen the first tip in your browser. Home and Work stay on that browser and aren't sent to Mana or synced to other devices. It doesn't share stop times or arrival times.
 
 ## Location
 

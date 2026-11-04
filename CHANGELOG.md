@@ -3,6 +3,15 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.20.0 — 2026-11-04
+
+- **Driver levels**: the sign next to ☰ in the search bar shows your level. Tap it to see your points
+  and the road to the next level, with your own car on it. You earn points when other drivers confirm
+  what you added: a road feature, a report, a place, a toll fare, or a Yes / No that matches what
+  others say. Five levels, from Novice to **King of the Road**. No account: points belong to this
+  phone (or this browser).
+- In the browser version too.
+
 ## 0.19.0 — 2026-11-04
 
 - **Car colours**: in **Menu** → **Your vehicle**, tap the small palette next to the title to paint
