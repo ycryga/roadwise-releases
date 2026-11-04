@@ -680,6 +680,7 @@ function submitSearch() {
 function showClear(on) {
   $("clear").hidden = !on;
   $("menuButton").hidden = on;
+  $("levelButton").hidden = on || !SUPABASE_URL;
 }
 $("menuButton").onclick = () => showMenu();
 $("clear").onclick = () => {
@@ -1421,6 +1422,13 @@ async function refreshIncidents() {
 }
 
 /** [read]: a POST that answers with rows (an rpc function), not just "done". */
+/** Adds a row with this browser's id, for levels; a database without the column yet (levels.sql) still gets it. */
+async function addMine(table, row) {
+  try { await supabase("POST", table, { ...row, device_id: deviceId() }); } catch (e) {
+    if (!e.message.startsWith("400")) throw e;
+    await supabase("POST", table, row);
+  }
+}
 async function supabase(method, path, body, read = false) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -1582,7 +1590,7 @@ async function sendReport(type, sub) {
   hideCard($("sheet"));
   const [lng, lat] = state.here;
   try {
-    await supabase("POST", "reports", { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}) });
+    await addMine("reports", { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}) });
     toast(`Reported: ${sub?.title ?? type.label}`);
     refreshReports();
   } catch (e) {
@@ -1628,6 +1636,91 @@ function showSaved() {
 }
 
 /** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
+/** Driver levels (docs/levels/PLAN.md): the server works out points from what other drivers confirmed (levels.sql). */
+const LEVELS = [[0, "Novice"], [100, "Scout"], [300, "Road Hero"], [750, "Captain"], [1500, "King of the Road"]];
+/** The last answer, kept in this browser so the Menu shows it at once (and offline). */
+const cachedLevel = () => { try { return JSON.parse(localStorage.getItem("mana.level")) ?? null; } catch { return null; } };
+async function fetchLevel() {
+  const [l] = await supabase("POST", "rpc/my_points", { device: deviceId() }, true);
+  try { localStorage.setItem("mana.level", JSON.stringify(l)); } catch { /* Shown, just not kept. */ }
+  return l;
+}
+/** The level sign (design/levels/level-sign.svg): a navy direction sign with the level [n] on it. */
+const levelSign = (n) => `<svg class="levelSign" viewBox="0 0 256 256" aria-hidden="true"><path fill="#7A8599" d="M87 150H105V226H87Z"/>` +
+  `<path fill="#002B7F" d="M36 36H176L236 96L176 156H36A16 16 0 0 1 20 140V52A16 16 0 0 1 36 36Z"/>` +
+  `<path fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" d="M40 56H167L207 96L167 136H40Z"/>` +
+  `<text x="114" y="96" dy=".35em" text-anchor="middle" fill="#fff" font-weight="700" font-size="78">${n}</text></svg>`;
+const NO_LEVEL = { points: 0, level: 1, title: "Novice", next_level_at: 100 };
+/** The sign in the search bar, beside the Menu; tapping it opens Your level. */
+function showLevelBadge(l) {
+  const b = $("levelButton");
+  b.innerHTML = levelSign(l.level);
+  b.title = b.ariaLabel = `Level ${l.level}, ${l.title}, ${l.points} points. Opens Your level`;
+}
+function refreshLevel() { fetchLevel().then(showLevelBadge).catch(() => {}); }
+if (SUPABASE_URL) {
+  showLevelBadge(cachedLevel() ?? NO_LEVEL);
+  $("levelButton").hidden = false;
+  $("levelButton").onclick = showLevel;
+  refreshLevel();
+  // Points come in as other drivers confirm, so the sign catches up whenever the page is looked at again.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLevel(); });
+}
+
+/** A row on a level page, as in the Menu: [sprite] or a level sign, [label], and [value] on the right. */
+function levelRow(lead, label, value, onclick) {
+  const b = Object.assign(document.createElement(onclick ? "button" : "div"), { className: onclick ? "menuRow" : "menuRow still" });
+  b.innerHTML = `${lead}<span class="label"></span><span class="value"></span>`;
+  b.querySelector(".label").textContent = label;
+  b.querySelector(".value").textContent = value ?? "";
+  if (onclick) b.onclick = onclick;
+  return b;
+}
+const backButton = () => Object.assign(document.createElement("button"), { className: "plain", textContent: "Back", onclick: showLevel });
+
+/**
+ * Your level, first page: the sign, your title and points, how far the next level is. How to earn points
+ * and the levels are a tap away, each on its own page, so no page holds everything.
+ */
+function showLevel() {
+  const l = cachedLevel() ?? NO_LEVEL;
+  const from = LEVELS.filter(([at]) => at <= l.points).at(-1)?.[0] ?? 0;
+  const next = LEVELS.find(([at]) => at === l.next_level_at);
+  const head = Object.assign(document.createElement("div"), { className: "levelHead" });
+  head.innerHTML = `${levelSign(l.level)}<div><div class="levelTitle"></div><div class="levelPoints"></div></div>`;
+  head.querySelector(".levelTitle").textContent = l.title;
+  head.querySelector(".levelPoints").textContent = `${l.points} points`;
+  // The road to the next level: covered in blue, your own car on it, the next level's sign at its end.
+  const pct = l.next_level_at ? Math.round(100 * (l.points - from) / (l.next_level_at - from)) : 100;
+  const bar = Object.assign(document.createElement("div"), { className: "levelRoad" });
+  bar.setAttribute("role", "img");
+  bar.ariaLabel = next ? `${pct}% of the way to ${next[1]}` : "Top level";
+  bar.innerHTML = `<div class="road"><div class="covered"></div></div><img class="roadCar" alt="">${next ? levelSign(l.level + 1) : ""}`;
+  bar.style.setProperty("--p", pct / 100);
+  bar.querySelector(".roadCar").src = carCanvas(vehicle()).toDataURL();
+  showSheet("Your level", head, bar,
+    Object.assign(document.createElement("p"), { className: "sheetText", textContent: next ? `${next[0] - l.points} more for ${next[1]}` : "The top level. Thank you for all your help!" }),
+    levelRow(icon("answer"), "How you earn points", null, showEarnPoints),
+    levelRow(icon("level"), "Levels", null, showAllLevels));
+}
+
+/** How points are earned: one row each, the points on the right, and when they come. */
+function showEarnPoints() {
+  showSheet("How you earn points",
+    ...[["road-feature", "A road feature you reported is confirmed", 30], ["add-location", "A place you added is still there after a week", 20],
+      ["report", "Another driver confirms your report", 10], ["toll", "A toll fare you sent becomes the fare", 10],
+      ["answer", "Your Yes or No matches what other drivers say", 3]].map(([sprite, label, points]) => levelRow(icon(sprite), label, `+${points}`)),
+    Object.assign(document.createElement("p"), { className: "sheetText muted",
+      textContent: "Points count once other drivers agree, so they come in over the next days. They belong to this browser: clearing it starts again from 0." }),
+    backButton());
+}
+
+/** The five levels, each with its sign and the points it takes; yours says so. */
+function showAllLevels() {
+  const now = (cachedLevel() ?? NO_LEVEL).level;
+  showSheet("Levels", ...LEVELS.map(([at, title], i) => levelRow(levelSign(i + 1), title, i + 1 === now ? "You're here" : `${at} points`)), backButton());
+}
+
 function showMenu() {
   $("search").blur();
   showResults([]);
@@ -1643,7 +1736,8 @@ function showMenu() {
   };
   showSheet("Menu",
     group("Driving"), row("car", "Your vehicle", vehicleLabel(vehicle()), chooseVehicle),
-    group("Help other drivers"), row("road-feature", "Report a road feature", null, startReportingFeature),
+    group("Help other drivers"),
+    row("road-feature", "Report a road feature", null, startReportingFeature),
     row("add-location", "Add a place missing from the map", null, startAddingPlace),
     group("Support"),
     // Progress shows once something has been given: "RM0 of RM300" reads as nobody cares.
@@ -1731,7 +1825,7 @@ function askMissingName(at, kind) {
     if (n.length < 2) return toast("Type the place's name");
     add.disabled = true;
     try {
-      await supabase("POST", "driver_places", { name: n, kind: kind.key, lat: at[1], lng: at[0] });
+      await addMine("driver_places", { name: n, kind: kind.key, lat: at[1], lng: at[0] });
     } catch (e) {
       add.disabled = false;
       return toast(`Couldn't add it: ${e.message}`);

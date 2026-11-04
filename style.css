@@ -167,6 +167,26 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #sheet { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 16px; z-index: 3; text-align: center; }
 #sheetTitle { font-weight: 600; margin-bottom: 10px; }
 .sheetText { grid-column: 1 / -1; margin: 0; text-align: left; font-size: 15px; }
+/* Your level: the sign beside your title and points, a bar to the next level; rows as in the Menu. */
+#searchBox #levelButton { width: 48px; height: 48px; padding: 4px; border: 0; background: none; opacity: 1; cursor: pointer; }
+#levelButton .levelSign { width: 40px; height: 40px; }
+.levelHead { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; text-align: left; }
+.levelHead .levelSign { width: 88px; height: 88px; flex: none; }
+.levelTitle { font-size: 24px; font-weight: 700; }
+.levelPoints { font-size: 16px; color: var(--mana-text-secondary); }
+.menuRow .levelSign { width: 32px; height: 32px; flex: none; }
+.menuRow.still { cursor: default; }
+.sheetText.muted { color: var(--mana-text-secondary); font-size: 14px; }
+/* The road to the next level (--p from 0 to 1): asphalt with a dashed centre line, the covered part in blue,
+   your car on it facing along the road, the next level's sign standing at the end. */
+.levelRoad { grid-column: 1 / -1; position: relative; height: 56px; --sign: 44px; }
+.levelRoad .road { position: absolute; left: 0; right: calc(var(--sign) * .55); bottom: 6px; height: 20px; border-radius: 10px; background: #DADCE0; overflow: hidden; }
+.levelRoad .road::after { content: ""; position: absolute; left: 10px; right: 10px; top: 9px; border-top: 2px dashed #fff; }
+.levelRoad .covered { height: 100%; width: max(20px, calc(var(--p) * 100%)); border-radius: 10px; background: var(--mana-primary); }
+.levelRoad .roadCar { position: absolute; width: 30px; height: 30px; bottom: 1px; transform: rotate(90deg);
+  left: clamp(0px, calc(var(--p) * (100% - var(--sign) * .55) - 15px), calc(100% - var(--sign) * .55 - 30px)); }
+.levelRoad .levelSign { position: absolute; right: 0; bottom: 6px; width: var(--sign); height: var(--sign); }
+:root.night .levelRoad .road { background: #3A4048; }
 .qr { grid-column: 1 / -1; width: min(260px, 70vw); justify-self: center; }
 #tiles textarea { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--mana-field-line); border-radius: 12px; resize: vertical; background: var(--mana-surface); color: var(--mana-text); }
 #tiles .primary { grid-column: 1 / -1; }
