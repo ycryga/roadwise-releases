@@ -3,6 +3,17 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.19.0 — 2026-11-04
+
+- **Car colours**: in **Menu** → **Your vehicle**, tap the small palette next to the title to paint
+  your car Mana blue, Ruby red, Pearl white or Silver, or keep its own colours. Only the paint
+  changes: windows, tyres and lights stay as they are. The Mana arrow keeps its own colours.
+- In the browser version too, which also got:
+  - the car gliding smoothly between GPS fixes instead of jumping once a second,
+  - the next turn sliding into the banner,
+  - the speed bubble flashing red when you go over the limit, as in the app,
+  - the speed limit sign no longer covering your speed.
+
 ## 0.18.1 — 2026-11-02
 
 - **Fixed: Mana closing at the destination** when navigation ended right after **Go**, for example
