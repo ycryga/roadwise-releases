@@ -351,18 +351,52 @@ function showPlaceIcons(on) {
 const vehicle = () => { try { return window.VEHICLES?.[localStorage.getItem("mana.vehicle")] ? localStorage.getItem("mana.vehicle") : "saloon"; } catch { return "saloon"; } };
 const vehicleLabel = (kind) => window.VEHICLES?.[kind]?.label ?? "Saloon";
 
+/** Car colours (Menu → Car colour): the vehicle's own paint, or one of these over it (as Android's CarColour). */
+const CAR_COLOURS = { original: ["Original", null], blue: ["Mana blue", "#2F6FED"], red: ["Ruby red", "#C62828"],
+  white: ["Pearl white", "#F8FAFC"], silver: ["Silver", "#B8C2CC"] };
+const carColour = () => { try { return CAR_COLOURS[localStorage.getItem("mana.carColour")] ? localStorage.getItem("mana.carColour") : "original"; } catch { return "original"; } };
+/** Each vehicle's paint: the body colour first, then the shades that go with it. Glass, tyres and lights keep theirs; the Mana arrow is a mark, not a car. */
+const PAINT = { saloon: ["#C62828", "#B71C1C", "#A31515"], hatchback: ["#2457E6", "#1D4ED8", "#1E40AF"], suv: ["#F8FAFC", "#002B7F"],
+  mpv: ["#CBD5E1", "#64748B"], pickup: ["#15803D", "#166534"], coupe: ["#F59E0B", "#D97706"] };
+const hsl = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255), max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (!d) return [0, 0, l];
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, d / (1 - Math.abs(2 * l - 1)), l];
+};
+const hex = ([h, s, l]) => {
+  const f = (n) => { const k = (n + h / 30) % 12; return Math.round(255 * (l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); };
+  return "#" + [0, 8, 4].map((n) => f(n).toString(16).padStart(2, "0")).join("").toUpperCase();
+};
+/**
+ * The vehicle's colours with [to] painted over its paint: the body becomes [to], and each shade keeps how much
+ * darker (or lighter) it was than the body. Pale paint gets a grey outline, so a white car still shows on a light map.
+ */
+function repaint(kind, to) {
+  const paint = PAINT[kind];
+  if (!to || !paint) return (c) => c;
+  const base = hsl(paint[0])[2], [h, s, l] = hsl(to);
+  const shade = (c) => {
+    const lc = hsl(c)[2];
+    return hex([h, s, lc <= base ? l * lc / base : l + (1 - l) * (lc - base) / (1 - base)]);
+  };
+  const map = new Map(paint.map((c) => [c, shade(c)]));
+  return (c, onPaint) => map.get(c) ?? (onPaint && c === "#FFFFFF" && l > 0.8 ? "#64748B" : c);
+}
+
 /** The chosen vehicle seen from above, facing north before GPS heading rotation (as Android's ic_nav_car*). */
 function carImage(kind = vehicle()) {
   const g = carCanvas(kind).getContext("2d");
   return g.getImageData(0, 0, 96, 96);
 }
-function carCanvas(kind) {
+function carCanvas(kind, colour = carColour()) {
   const size = 96, canvas = Object.assign(document.createElement("canvas"), { width: size, height: size }), g = canvas.getContext("2d");
   g.scale(2, 2);
+  const paint = repaint(kind, CAR_COLOURS[colour]?.[1]);
   const draw = (d, fill, stroke = null, width = 1) => {
-    const p = new Path2D(d);
-    if (fill) { g.fillStyle = fill; g.fill(p); }
-    if (stroke) { g.strokeStyle = stroke; g.lineWidth = width; g.lineJoin = "round"; g.stroke(p); }
+    const p = new Path2D(d), painted = fill && paint(fill) !== fill;
+    if (fill) { g.fillStyle = paint(fill); g.fill(p); }
+    if (stroke) { g.strokeStyle = paint(stroke, painted); g.lineWidth = width; g.lineJoin = "round"; g.stroke(p); }
   };
   const other = window.VEHICLES?.[kind];
   if (other) { for (const p of other.paths) draw(p.d, p.fill, p.stroke, p.width); return canvas; }
@@ -376,6 +410,25 @@ function carCanvas(kind) {
   draw("M16.5 22l1.6.3v10.2l-1.6.3z M31.5 22l-1.6.3v10.2l1.6.3z", "#1F2A36");
   draw("M16.4 41.4h3.8v1.8h-3.8z M27.8 41.4h3.8v1.8h-3.8z", "#FF8A65");
   return canvas;
+}
+
+/** The current vehicle in each car colour (the palette in Your vehicle); the one in use is marked. Back to the vehicles after. */
+function chooseCarColour() {
+  const now = carColour();
+  showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label]]) => {
+    const b = document.createElement("button");
+    b.className = "menuRow";
+    b.innerHTML = `<img class="vehicle" alt=""><span class="label"></span><span class="value"></span>`;
+    b.querySelector("img").src = carCanvas(vehicle(), key).toDataURL();
+    b.querySelector(".label").textContent = label;
+    b.querySelector(".value").textContent = key === now ? "In use" : "";
+    b.onclick = () => {
+      try { localStorage.setItem("mana.carColour", key); } catch { return toast("Couldn't save it in your browser"); }
+      if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
+      chooseVehicle();
+    };
+    return b;
+  }));
 }
 
 /** The vehicles to drive as, each in its own colours; the one in use is marked. Back to the Menu after. */
@@ -395,6 +448,9 @@ function chooseVehicle() {
     };
     return b;
   }));
+  // A small palette next to the title opens the car colours (not for the Mana arrow, which keeps its own).
+  if (PAINT[now]) $("sheetTitle").append(Object.assign(document.createElement("button"), {
+    className: "titleAction", innerHTML: icon("palette"), title: "Car colour", ariaLabel: "Car colour", onclick: chooseCarColour }));
 }
 
 /**

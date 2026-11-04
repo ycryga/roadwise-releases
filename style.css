@@ -179,6 +179,9 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* Three to a row, all in view at once: no scrolling while driving. */
 #tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 #sheetTitle { text-align: left; font-size: 18px; font-weight: 700; }
+/* A small icon button at the end of a sheet title (the car colours in Your vehicle): 48px to tap, no bigger to see. */
+.titleAction { float: right; width: 48px; height: 48px; margin: -12px -10px -12px 0; border: 0; border-radius: 50%; background: none; color: var(--mana-text-secondary); cursor: pointer; }
+.titleAction:active { background: color-mix(in srgb, currentColor 12%, transparent); }
 /* A tile: the colour as a tint and a border, its icon in the colour, its word in ink. */
 .tile { min-height: 84px; border: 2px solid var(--tile); border-radius: 20px; padding: 10px 4px; background: color-mix(in srgb, var(--tile) 14%, transparent);
   color: var(--mana-text); font-size: 14px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
