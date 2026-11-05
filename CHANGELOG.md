@@ -3,6 +3,16 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.21.0 — 2026-11-05
+
+- **Report a road change**: a camera, speed bump or U-turn on the map is gone? Tap it and choose
+  **It's gone**. It stays until other drivers passing by agree, so one tap can't remove a real camera.
+- Road features are harder to fake: confirmations have to come from different drivers on different
+  connections.
+- **Points you've earned stay**, even if the road changes later, and each thing you add or answer
+  earns once.
+- In the browser version too.
+
 ## 0.20.0 — 2026-11-04
 
 - **Driver levels**: the sign next to ☰ in the search bar shows your level. Tap it to see your points
