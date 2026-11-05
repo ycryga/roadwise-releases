@@ -222,3 +222,8 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #update[hidden] { display: none; }
 
 .tile.currentLimit { outline: 3px solid currentColor; outline-offset: -3px; }
+
+.menuRow.lockedColour .vehicle { opacity: .4; }
+.menuRow.lockedColour .label, .menuRow.lockedColour .value { color: var(--mana-text-secondary); }
+.menuRow.lockedColour .value { max-width: 160px; }
+.colourLock { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }

@@ -356,8 +356,9 @@ const vehicle = () => { try { return window.VEHICLES?.[localStorage.getItem("man
 const vehicleLabel = (kind) => window.VEHICLES?.[kind]?.label ?? "Saloon";
 
 /** Car colours (Menu → Car colour): the vehicle's own paint, or one of these over it (as Android's CarColour). */
-const CAR_COLOURS = { original: ["Original", null], blue: ["Mana blue", "#2F6FED"], red: ["Ruby red", "#C62828"],
-  white: ["Pearl white", "#F8FAFC"], silver: ["Silver", "#B8C2CC"] };
+const CAR_COLOURS = { original: ["Original", null, 1], blue: ["Mana blue", "#2F6FED", 1], red: ["Ruby red", "#C62828", 1],
+  white: ["Pearl white", "#F8FAFC", 1], silver: ["Silver", "#B8C2CC", 1], forest: ["Forest green", "#15803D", 2],
+  cyan: ["Cyber cyan", "#06B6D4", 3], obsidian: ["Midnight obsidian", "#1E293B", 4], gold: ["Diraja gold", "#CA8A04", 5] };
 const carColour = () => { try { return CAR_COLOURS[localStorage.getItem("mana.carColour")] ? localStorage.getItem("mana.carColour") : "original"; } catch { return "original"; } };
 /** Each vehicle's paint: the body colour first, then the shades that go with it. Glass, tyres and lights keep theirs; the Mana arrow is a mark, not a car. */
 const PAINT = { saloon: ["#C62828", "#B71C1C", "#A31515"], hatchback: ["#2457E6", "#1D4ED8", "#1E40AF"], suv: ["#F8FAFC", "#002B7F"],
@@ -419,14 +420,20 @@ function carCanvas(kind, colour = carColour()) {
 /** The current vehicle in each car colour (the palette in Your vehicle); the one in use is marked. Back to the vehicles after. */
 function chooseCarColour() {
   const now = carColour();
-  showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label]]) => {
+  const level = cachedLevel()?.level ?? 1, points = cachedLevel()?.points ?? 0;
+  showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label, , unlockLevel]]) => {
     const b = document.createElement("button");
-    b.className = "menuRow";
+    const locked = unlockLevel > level;
+    const lockText = locked ? `Level ${unlockLevel} · ${LEVELS[unlockLevel - 1][0] - points} more points` : "";
+    b.className = `menuRow${locked ? " lockedColour" : ""}`;
+    b.setAttribute("aria-label", locked ? `${label}, Locked, ${lockText.replace(" · ", ", ")}` : key === now ? `${label}, In use` : label);
     b.innerHTML = `<img class="vehicle" alt=""><span class="label"></span><span class="value"></span>`;
     b.querySelector("img").src = carCanvas(vehicle(), key).toDataURL();
     b.querySelector(".label").textContent = label;
-    b.querySelector(".value").textContent = key === now ? "In use" : "";
+    b.querySelector(".value").textContent = lockText || (key === now ? "In use" : "");
+    if (locked) b.querySelector(".value").insertAdjacentHTML("afterbegin", '<svg class="colourLock" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9Z"/></svg>');
     b.onclick = () => {
+      if (locked) return toast(lockText);
       try { localStorage.setItem("mana.carColour", key); } catch { return toast("Couldn't save it in your browser"); }
       if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
       chooseVehicle();
