@@ -3,6 +3,16 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.22.0 — 2026-11-05
+
+- **Speed limit changed?** Tap the speed limit sign on the speed bubble and pick the new limit. Other
+  drivers passing by are asked "Speed limit 60 here?", and once enough agree, everyone sees the new
+  limit. A driver-confirmed limit sign now wins over the mapped limit from that sign on.
+- **Level badges**: each level has its own road sign, from one chevron for Novice to five for King of
+  the Road, in the colour that level unlocks. You'll see them in Your level and the list of levels.
+- Signs for the other side of the road no longer change your limit or ask you about it.
+- In the browser version too.
+
 ## 0.21.0 — 2026-11-05
 
 - **Report a road change**: a camera, speed bump or U-turn on the map is gone? Tap it and choose
