@@ -227,3 +227,5 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .menuRow.lockedColour .label, .menuRow.lockedColour .value { color: var(--mana-text-secondary); }
 .menuRow.lockedColour .value { max-width: 160px; }
 .colourLock { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
+
+.routeSwatch { stroke-linecap: round; flex-shrink: 0; }

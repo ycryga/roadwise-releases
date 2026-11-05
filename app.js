@@ -207,8 +207,8 @@ map.on("load", () => {
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": css("--mana-route-driven"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": css("--mana-route-casing"), "line-width": 13 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": css("--mana-route"), "line-width": 8 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": ROUTE_COLOURS[routeColour()][night ? 4 : 2], "line-width": 13 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": ROUTE_COLOURS[routeColour()][night ? 3 : 1], "line-width": 8 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "slow", type: "line", source: "slow", paint: { "line-color": ["get", "color"], "line-width": 6 }, layout: { "line-cap": "round", "line-join": "round" } });
   // The destination: a pin standing on the spot, and the ring it sends out when it drops (hidden at rest).
   map.addLayer({ id: "stops", type: "circle", source: "stops", paint: { "circle-color": "#fff", "circle-radius": 11, "circle-stroke-color": css("--mana-via"), "circle-stroke-width": 3 } });
@@ -358,8 +358,23 @@ const vehicleLabel = (kind) => window.VEHICLES?.[kind]?.label ?? "Saloon";
 /** Car colours (Menu → Car colour): the vehicle's own paint, or one of these over it (as Android's CarColour). */
 const CAR_COLOURS = { original: ["Original", null, 1], blue: ["Mana blue", "#2F6FED", 1], red: ["Ruby red", "#C62828", 1],
   white: ["Pearl white", "#F8FAFC", 1], silver: ["Silver", "#B8C2CC", 1], forest: ["Forest green", "#15803D", 2],
-  cyan: ["Cyber cyan", "#06B6D4", 3], obsidian: ["Midnight obsidian", "#1E293B", 4], gold: ["Diraja gold", "#CA8A04", 5] };
+  cyan: ["Cyber cyan", "#06B6D4", 3], obsidian: ["Midnight obsidian", "#1E293B", 4], gold: ["Champion gold", "#CA8A04", 5] };
 const carColour = () => { try { return CAR_COLOURS[localStorage.getItem("mana.carColour")] ? localStorage.getItem("mana.carColour") : "original"; } catch { return "original"; } };
+const ROUTE_COLOURS = {
+  blue: ["Mana blue", "#2457E6", "#12358F", "#5B87FF", "#2457E6", 1],
+  emerald: ["Emerald", "#059669", "#064E3B", "#34D399", "#059669", 2],
+  cyan: ["Electric cyan", "#0891B2", "#164E63", "#22D3EE", "#0891B2", 3],
+  violet: ["Royal violet", "#7C3AED", "#4C1D95", "#A78BFA", "#7C3AED", 4],
+  gold: ["Golden highway", "#1E293B", "#CA8A04", "#1E293B", "#FACC15", 5]
+};
+const routeColour = () => { try { const key = localStorage.getItem("mana.routeColour"); return Object.hasOwn(ROUTE_COLOURS, key) ? key : "blue"; } catch { return "blue"; } };
+function recolorRoute() {
+  const c = ROUTE_COLOURS[routeColour()];
+  if (map.getLayer("route")) {
+    map.setPaintProperty("route", "line-color", c[night ? 3 : 1]);
+    map.setPaintProperty("route-casing", "line-color", c[night ? 4 : 2]);
+  }
+}
 /** Each vehicle's paint: the body colour first, then the shades that go with it. Glass, tyres and lights keep theirs; the Mana arrow is a mark, not a car. */
 const PAINT = { saloon: ["#C62828", "#B71C1C", "#A31515"], hatchback: ["#2457E6", "#1D4ED8", "#1E40AF"], suv: ["#F8FAFC", "#002B7F"],
   mpv: ["#CBD5E1", "#64748B"], pickup: ["#15803D", "#166534"], coupe: ["#F59E0B", "#D97706"] };
@@ -436,6 +451,23 @@ function chooseCarColour() {
       if (locked) return toast(lockText);
       try { localStorage.setItem("mana.carColour", key); } catch { return toast("Couldn't save it in your browser"); }
       if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
+      chooseVehicle();
+    };
+    return b;
+  }), Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Route colour" }), ...Object.entries(ROUTE_COLOURS).map(([key, [label, dayLine, dayCasing, nightLine, nightCasing, unlockLevel]]) => {
+    const b = document.createElement("button");
+    const locked = unlockLevel > level;
+    const lockText = locked ? `Level ${unlockLevel} · ${LEVELS[unlockLevel - 1][0] - points} more points` : "";
+    b.className = `menuRow${locked ? " lockedColour" : ""}`;
+    b.setAttribute("aria-label", locked ? `${label}, Locked, ${lockText.replace(" · ", ", ")}` : key === routeColour() ? `${label}, In use` : label);
+    b.innerHTML = `<svg class="vehicle routeSwatch" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 22h28" stroke="${night ? nightCasing : dayCasing}" stroke-width="13"/><path d="M8 22h28" stroke="${night ? nightLine : dayLine}" stroke-width="8"/></svg><span class="label"></span><span class="value"></span>`;
+    b.querySelector(".label").textContent = label;
+    b.querySelector(".value").textContent = lockText || (key === routeColour() ? "In use" : "");
+    if (locked) b.querySelector(".value").insertAdjacentHTML("afterbegin", '<svg class="colourLock" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9Z"/></svg>');
+    b.onclick = () => {
+      if (locked) return toast(lockText);
+      try { localStorage.setItem("mana.routeColour", key); } catch { return toast("Couldn't save it in your browser"); }
+      recolorRoute();
       chooseVehicle();
     };
     return b;
@@ -548,12 +580,7 @@ function applyNight(on) {
   night = on;
   document.documentElement.classList.toggle("night", on);
   document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#002B7F";
-  // The day navy-family route blue is too dark on the night map.
-  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (map.getLayer("route")) {
-    map.setPaintProperty("route", "line-color", css(on ? "--mana-route-night" : "--mana-route"));
-    map.setPaintProperty("route-casing", "line-color", css(on ? "--mana-route-casing-night" : "--mana-route-casing"));
-  }
+  recolorRoute();
   const paint = (id, prop, value) => {
     const key = `${id}|${prop}`;
     if (on) {
@@ -607,6 +634,7 @@ function startLocation() {
 }
 
 function onLocation() {
+  showArrivalPoints();
   const nav = state.nav;
   let shown = state.here;
   if (nav && state.stops.length && distance(state.here, state.stops[0].at) < STOP_REACHED_METERS) {
@@ -1177,8 +1205,9 @@ function startNavigation() {
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
   if (!r) return;
+  pendingArrival = null;
   state.nav = { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, rerouting: false, progress: null,
-    startedAt: Date.now(), predicted: r.seconds, cumulative: cumulative(r.points) };
+    cumulative: cumulative(r.points) };
   state.following = true;
   $("searchBox").hidden = true;
   $("banner").hidden = false;
@@ -1293,11 +1322,10 @@ function showNav(u) {
   $("navLeft").textContent = joinWhole([formatDuration(u.secondsLeft), shortDistance(u.left)]);
   if (u.speak) say(u.speak);
   if (u.arrived) {
-    const took = (Date.now() - nav.startedAt) / 1000, off = Math.round((took - nav.predicted) / 60);
-    toast(`You have arrived · said ${formatDuration(nav.predicted)}, took ${formatDuration(took)} (${off > 0 ? "+" : ""}${off} min)`);
     stopNavigation();
     clearRoute();
     $("search").value = "";
+    fetchArrivalPoints();
   } else if (u.offRoute && !nav.rerouting) {
     reroute();
   }
@@ -1705,8 +1733,43 @@ function showSaved() {
 /** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
 /** Driver levels (docs/levels/PLAN.md): the server works out points from what other drivers confirmed (levels.sql). */
 const LEVELS = [[0, "Novice"], [100, "Scout"], [300, "Road Hero"], [750, "Captain"], [1500, "King of the Road"]];
+function arrivalMessage(seenPoints, seenLevel, now) {
+  if (seenPoints == null || seenLevel == null) return null;
+  if (now.level > seenLevel) {
+    const car = Object.values(CAR_COLOURS).find(c => c[2] === now.level)[0];
+    const route = Object.values(ROUTE_COLOURS).find(c => c[5] === now.level)[0];
+    return `You're now a ${LEVELS[now.level - 1][1]} · ${car} car and ${route} route unlocked`;
+  }
+  return now.points > seenPoints ? `+${now.points - seenPoints} points · ${now.points} in total` : null;
+}
 /** The last answer, kept in this browser so the Menu shows it at once (and offline). */
 const cachedLevel = () => { try { return JSON.parse(localStorage.getItem("mana.level")) ?? null; } catch { return null; } };
+let pendingArrival = null;
+function markLevelSeen(l) {
+  try {
+    localStorage.setItem("mana.seenPoints", String(l.points));
+    localStorage.setItem("mana.seenLevel", String(l.level));
+  } catch { /* Storage may be unavailable. */ }
+}
+function fetchArrivalPoints() {
+  const pending = pendingArrival = { now: null };
+  fetchLevel().then(now => {
+    if (pendingArrival !== pending) return;
+    pending.now = now;
+    showArrivalPoints();
+  }).catch(() => { if (pendingArrival === pending) pendingArrival = null; });
+}
+function showArrivalPoints() {
+  if (!pendingArrival?.now || state.nav || !(state.speed < PARKING_SPEED) || state.speedKmh == null) return;
+  const now = pendingArrival.now;
+  pendingArrival = null;
+  try {
+    const points = localStorage.getItem("mana.seenPoints"), level = localStorage.getItem("mana.seenLevel");
+    const message = arrivalMessage(points == null ? null : Number(points), level == null ? null : Number(level), now);
+    if (message) toast(message);
+    if (message || points == null || level == null) markLevelSeen(now);
+  } catch { /* No message without a saved comparison. */ }
+}
 async function fetchLevel() {
   const [l] = await supabase("POST", "rpc/my_points", { device: deviceId() }, true);
   try { localStorage.setItem("mana.level", JSON.stringify(l)); } catch { /* Shown, just not kept. */ }
@@ -1763,6 +1826,7 @@ const backButton = () => Object.assign(document.createElement("button"), { class
  */
 function showLevel() {
   const l = cachedLevel() ?? NO_LEVEL;
+  if (cachedLevel()) markLevelSeen(l);
   const from = LEVELS.filter(([at]) => at <= l.points).at(-1)?.[0] ?? 0;
   const next = LEVELS.find(([at]) => at === l.next_level_at);
   const head = Object.assign(document.createElement("div"), { className: "levelHead" });
