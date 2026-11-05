@@ -263,6 +263,10 @@ map.on("click", "reports", (e) => {
   const r = state.reports.find((x) => x.id === e.features[0].properties.id);
   if (r) toast(`${r.title} · reported ${minutesAgo(r.created)}${r.confirmed > r.created ? ` · still there ${minutesAgo(r.confirmed)}` : ""}`);
 });
+map.on("click", "features", (e) => {
+  const f = state.features.find((x) => x.id === e.features[0].properties.id);
+  if (f) reportChange(f);
+});
 map.on("click", "incidents", (e) => {
   const inc = state.incidents[e.features[0].properties.i];
   if (inc) toast(`${inc.text || inc.spoken}${inc.delay >= 60 ? ` · +${formatDuration(inc.delay)}` : ""}`);
@@ -1503,16 +1507,16 @@ async function loadFeatures(points) {
     const rows = await supabase("POST", "rpc/road_features_in", { south: lat, west: lng, north: Math.min(lat + 1, n), east: Math.min(lng + 1, e) }, true).catch(() => []);
     for (const r of rows) {
       const kind = ROAD_FEATURES.find((f) => f.key === r.kind);
-      if (kind && !found.some((x) => x.id === r.id)) found.push({ id: r.id, kind, at: [r.lng, r.lat], limit: r.value, confirmed: r.confirmed });
+      if (kind && !found.some((x) => x.id === r.id)) found.push({ id: r.id, kind, at: [r.lng, r.lat], limit: r.value, confirmed: r.confirmed, changing: r.changing });
     }
   }
   // Only the ones on the route: a feature on a road you're not taking isn't worth a word.
   state.features = found.filter((f) => snap(f.at, points)?.meters <= FEATURE_ON_ROUTE_METERS);
   map.getSource("features")?.setData(fc(state.features.filter((f) => f.confirmed && f.kind.key !== "speed_limit")
-    .map((f) => pointFeature(f.at, { icon: badge(f.kind.glyph, f.kind.color) }))));
+    .map((f) => pointFeature(f.at, { id: f.id, icon: badge(f.kind.glyph, f.kind.color) }))));
 }
 
-/** While driving: say confirmed cameras and bumps ahead; after passing an unconfirmed one, ask. */
+/** While driving: say confirmed cameras and bumps ahead; after passing an unconfirmed one (or one with a road change reported), ask. */
 function checkFeatures(here) {
   if (!state.nav || !state.features.length) return;
   for (const f of state.features) {
@@ -1522,7 +1526,7 @@ function checkFeatures(here) {
       say(f.kind.spoken + (f.kind.key === "speed_camera" && f.limit ? `, limit ${f.limit}` : ""));
       return;
     }
-    if (f.confirmed || state.featuresAsked.has(f.id)) continue;
+    if ((f.confirmed && !f.changing) || state.featuresAsked.has(f.id)) continue;
     const closest = Math.min(d, state.featuresClosest[f.id] ?? d);
     state.featuresClosest[f.id] = closest;
     if (closest < 60 && d > closest + 80) {
@@ -1531,6 +1535,17 @@ function checkFeatures(here) {
       return;
     }
   }
+}
+/** Report a road change on a confirmed feature (road_changes.sql): it stays until passing drivers agree it's gone. */
+function reportChange(f) {
+  showTiles(`${f.kind.label}: report a road change`, [{ glyph: f.kind.glyph, label: "It's gone", color: NEUTRAL_TILE, pick: async () => {
+    hideCard($("sheet"));
+    try {
+      await supabase("POST", "road_feature_votes", { feature_id: f.id, yes: false, change: true, device_id: deviceId() });
+      state.featuresAsked.add(f.id);
+      toast("Reported. Other drivers will check it.");
+    } catch { toast("Couldn't send. Try again later."); }
+  } }, closeTile]);
 }
 function askFeature(f) {
   const answer = (yes) => async () => {
