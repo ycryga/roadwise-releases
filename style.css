@@ -149,7 +149,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #speedReading strong { font-size: 25px; font-variant-numeric: tabular-nums; }
 #speedReading small { margin-top: 3px; font-size: 11px; color: #5F6368; }
 /* Above the speed, overlapping only its edge (as the app's SpeedView), so the number stays clear. */
-#speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 42px; height: 42px; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; padding: 0; cursor: pointer; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 /* Going over: the bubble flashes red six times, 300 ms each (as the app's SpeedView), then stays red. */
 #speedView.speeding { border-color: var(--mana-danger); background: var(--mana-danger); color: #fff; animation: speedFlash 600ms step-end 3; }
 #speedView.speeding #speedReading small { color: inherit; opacity: .85; }
@@ -170,6 +170,8 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* Your level: the sign beside your title and points, a bar to the next level; rows as in the Menu. */
 #searchBox #levelButton { width: 48px; height: 48px; padding: 4px; border: 0; background: none; opacity: 1; cursor: pointer; }
 #levelButton .levelSign { width: 40px; height: 40px; }
+.levelBadge { color: var(--badge-day); }
+:root.night .levelBadge { color: var(--badge-night); }
 .levelHead { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; text-align: left; }
 .levelHead .levelSign { width: 88px; height: 88px; flex: none; }
 .levelTitle { font-size: 24px; font-weight: 700; }
@@ -218,3 +220,5 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 [hidden] { display: none !important; }
 #update { display: block; width: 100%; margin-top: 8px; padding: 12px 16px; border: 0; color: #fff; background: var(--mana-accent); font-size: 15px; text-align: center; }
 #update[hidden] { display: none; }
+
+.tile.currentLimit { outline: 3px solid currentColor; outline-offset: -3px; }

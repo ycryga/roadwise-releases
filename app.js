@@ -1273,8 +1273,8 @@ function showNav(u) {
   map.getSource("route")?.setData(lineFeature(remaining));
   const limit = speedLimitAt(state.here, nav.route.limits || []);
   $("currentSpeed").textContent = state.speedKmh == null ? "–" : String(state.speedKmh);
-  $("speedLimit").textContent = limit == null ? "" : String(limit);
-  $("speedLimit").hidden = limit == null;
+  $("speedLimit").textContent = limit == null ? "–" : String(limit);
+  $("speedLimit").hidden = false;
   $("speedView").classList.toggle("speeding", limit != null && state.speedKmh != null && state.speedKmh > limit + 5);
   $("arrow").textContent = symbolFor(u.step);
   if (u.step !== nav.arrowFor) { nav.arrowFor = u.step; drawTurnArrow(u.step); bannerIn(); }
@@ -1296,7 +1296,48 @@ function showNav(u) {
   }
 }
 
+const SIGN_REACH_METERS = 3000;
+function limitSignFacesRoute(f) {
+  const hit = snap(f.at, state.nav.route.points);
+  return hit != null && (f.heading == null || angleBetween(f.heading, hit.bearing) <= 60);
+}
+function limitSignAt(at) {
+  const nav = state.nav;
+  if (!nav) return null;
+  const position = (p) => {
+    const hit = snap(p, nav.route.points);
+    return hit && hit.meters <= FEATURE_ON_ROUTE_METERS ? nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment], hit.point) : null;
+  };
+  const here = position(at);
+  if (here == null) return null;
+  let latest = null, latestAlong = -Infinity;
+  for (const f of state.features) {
+    if (f.kind.key !== "speed_limit" || !f.confirmed || !f.limit) continue;
+    if (!limitSignFacesRoute(f)) continue;
+    const along = position(f.at);
+    if (along != null && along <= here && here - along < SIGN_REACH_METERS && along >= latestAlong) { latest = f; latestAlong = along; }
+  }
+  return latest;
+}
+function reportLimitChange() {
+  if (!state.nav || !state.here) return;
+  const sign = limitSignAt(state.here);
+  const current = speedLimitAt(state.here, state.nav.route.limits || []);
+  showTiles("Speed limit changed?", [...SPEED_LIMITS.map((kmh) => ({ sign: kmh, selected: kmh === current,
+    color: ROAD_FEATURES.find((f) => f.key === "speed_limit").color, pick: async () => {
+      hideCard($("sheet"));
+      try {
+        if (sign) await supabase("POST", "road_feature_votes", { feature_id: sign.id, yes: true, change: true, value: kmh, device_id: deviceId() });
+        else { await sendFeature(ROAD_FEATURES.find((f) => f.key === "speed_limit"), null, kmh, true); return; }
+        toast("Reported. Other drivers will check it.");
+      } catch { toast("Couldn't send. Try again later."); }
+    } })), closeTile]);
+}
+$("speedLimit").onclick = reportLimitChange;
+
 function speedLimitAt(at, limits) {
+  const sign = limitSignAt(at);
+  if (sign) return sign.limit;
   let nearest = null;
   for (const limit of limits) {
     const candidate = snap(at, limit.points);
@@ -1479,15 +1520,15 @@ function showLimitTiles(f, at) {
     ...(f.key === "speed_camera" ? [{ glyph: f.glyph, label: "Not sure", color: f.color, pick: () => sendFeature(f, at, null) }] : []),
     { sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: () => showFeatureTiles(at) }]);
 }
-async function sendFeature(f, at, limit) {
+async function sendFeature(f, at, limit, limitChange = false) {
   hideCard($("sheet"));
   const [lng, lat] = at ?? state.here;
   try {
     await supabase("POST", "road_features", { kind: f.key, lat, lng, heading: !at && state.heading != null ? Math.round(state.heading) % 360 : null,
       value: limit, device_id: deviceId() });
-    toast(`Reported: ${f.label}. Other drivers will confirm it.`);
+    toast(limitChange ? "Reported. Other drivers will check it." : `Reported: ${f.label}. Other drivers will confirm it.`);
   } catch (e) {
-    toast(`Couldn't send it: ${e.message}`);
+    toast(limitChange ? "Couldn't send. Try again later." : `Couldn't send it: ${e.message}`);
   }
 }
 function startReportingFeature() {
@@ -1507,7 +1548,7 @@ async function loadFeatures(points) {
     const rows = await supabase("POST", "rpc/road_features_in", { south: lat, west: lng, north: Math.min(lat + 1, n), east: Math.min(lng + 1, e) }, true).catch(() => []);
     for (const r of rows) {
       const kind = ROAD_FEATURES.find((f) => f.key === r.kind);
-      if (kind && !found.some((x) => x.id === r.id)) found.push({ id: r.id, kind, at: [r.lng, r.lat], limit: r.value, confirmed: r.confirmed, changing: r.changing });
+      if (kind && !found.some((x) => x.id === r.id)) found.push({ id: r.id, kind, at: [r.lng, r.lat], limit: r.value, heading: r.heading, confirmed: r.confirmed, changing: r.changing, changeValue: r.change_value });
     }
   }
   // Only the ones on the route: a feature on a road you're not taking isn't worth a word.
@@ -1526,7 +1567,8 @@ function checkFeatures(here) {
       say(f.kind.spoken + (f.kind.key === "speed_camera" && f.limit ? `, limit ${f.limit}` : ""));
       return;
     }
-    if ((f.confirmed && !f.changing) || state.featuresAsked.has(f.id)) continue;
+    if ((f.confirmed && (!f.changing || (f.kind.key === "speed_limit" && !f.changeValue))) || state.featuresAsked.has(f.id)) continue;
+    if (f.kind.key === "speed_limit" && !limitSignFacesRoute(f)) continue;
     const closest = Math.min(d, state.featuresClosest[f.id] ?? d);
     state.featuresClosest[f.id] = closest;
     if (closest < 60 && d > closest + 80) {
@@ -1548,13 +1590,15 @@ function reportChange(f) {
   } }, closeTile]);
 }
 function askFeature(f) {
+  const value = f.kind.key === "speed_limit" ? (f.confirmed && f.changing && f.changeValue ? f.changeValue : f.limit) : undefined;
+  const question = f.kind.key === "speed_limit" ? `Speed limit ${value} here?` : f.kind.ask;
   const answer = (yes) => async () => {
     hideCard($("sheet"));
-    try { await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, device_id: deviceId() }); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
+    try { await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, value, device_id: deviceId() }); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
   };
-  showTiles(f.kind.ask, [{ glyph: f.kind.glyph, label: "Yes", color: f.kind.color, pick: answer(true) },
+  showTiles(question, [{ glyph: f.kind.glyph, label: "Yes", color: f.kind.color, pick: answer(true) },
     { sprite: "close", label: "No", color: NEUTRAL_TILE, pick: answer(false) }]);
-  setTimeout(() => { if ($("sheetTitle").textContent === f.kind.ask) hideCard($("sheet")); }, 15000);
+  setTimeout(() => { if ($("sheetTitle").textContent === question) hideCard($("sheet")); }, 15000);
 }
 function showSubtypes(t) {
   const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
@@ -1568,11 +1612,12 @@ function showTiles(title, tiles) {
   $("tiles").replaceChildren(...tiles.map((t) => {
     const b = document.createElement("button");
     b.className = "tile";
+    if (t.selected) { b.classList.add("currentLimit"); b.setAttribute("aria-current", "true"); }
     b.style.setProperty("--tile", t.color);
     // A speed limit tile is the number in a red ring, like the real sign.
     b.innerHTML = t.sign ? `<b class="limitSign"></b>` : t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
       : `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
-    if (t.sign) { b.querySelector("b").textContent = t.sign; b.setAttribute("aria-label", `${t.sign} km/h`); }
+    if (t.sign) { b.querySelector("b").textContent = t.sign; b.setAttribute("aria-label", `${t.sign} km/h${t.selected ? ", current" : ""}`); if (t.selected) { const label = document.createElement("span"); label.textContent = "Current"; b.append(label); } }
     else {
       if (!t.sprite) b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
       b.querySelector("span").textContent = t.label;
@@ -1665,6 +1710,18 @@ const levelSign = (n) => `<svg class="levelSign" viewBox="0 0 256 256" aria-hidd
   `<path fill="#002B7F" d="M36 36H176L236 96L176 156H36A16 16 0 0 1 20 140V52A16 16 0 0 1 36 36Z"/>` +
   `<path fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" d="M40 56H167L207 96L167 136H40Z"/>` +
   `<text x="114" y="96" dy=".35em" text-anchor="middle" fill="#fff" font-weight="700" font-size="78">${n}</text></svg>`;
+/** Approved badge masters; CSS switches the pair with the existing root night class. */
+const LEVEL_BADGES = [
+  { path: "M76 224 H124 V216 L112 216 V144 H176 L216 104 L176 64 H44 L32 76 V132 L44 144 H88 V216 L76 216 Z M180 104 L152 76 H136 L164 104 L136 132 H152 Z", day: "#002B7F", night: "#8FAEFF" },
+  { path: "M76 224 H124 V216 L112 216 V164 H128 V152 H112 V144 H176 L216 104 L176 64 H44 L32 76 V132 L44 144 H88 V152 H72 V164 H88 V216 L76 216 Z M132 104 L108 80 H96 L120 104 L96 128 H108 Z M180 104 L156 80 H144 L168 104 L144 128 H156 Z", day: "#15803D", night: "#4ADE80" },
+  { path: "M44 224 H156 V216 L144 216 L112 184 V144 H184 L224 104 L184 64 H40 L28 76 V132 L40 144 H88 V184 L56 216 L44 216 Z M64 216 L88 192 V216 Z M136 216 L112 192 V216 Z M108 104 L88 84 H78 L98 104 L78 124 H88 Z M148 104 L128 84 H118 L138 104 L118 124 H128 Z M188 104 L168 84 H158 L178 104 L158 124 H168 Z", day: "#0E7490", night: "#22D3EE" },
+  { path: "M52 224 H148 V216 H136 V144 H188 L228 104 L188 64 H36 L24 76 V132 L36 144 H64 V216 H52 Z M84 144 H116 V172 H84 Z M84 184 H116 V216 H84 Z M94 104 L74 84 H64 L84 104 L64 124 H74 Z M126 104 L106 84 H96 L116 104 L96 124 H106 Z M158 104 L138 84 H128 L148 104 L128 124 H138 Z M190 104 L170 84 H160 L180 104 L160 124 H170 Z", day: "#334155", night: "#CBD5E1" },
+  { path: "M16 224 H184 V216 H176 L136 176 V144 H192 L232 104 L192 64 H32 L20 76 V132 L32 144 H64 V176 L24 216 H16 Z M44 216 L64 196 V216 Z M156 216 L136 196 V216 Z M84 144 H116 V172 H84 Z M84 184 H116 V216 H84 Z M90 104 L70 84 H60 L80 104 L60 124 H70 Z M117 104 L97 84 H87 L107 104 L87 124 H97 Z M144 104 L124 84 H114 L134 104 L114 124 H124 Z M171 104 L151 84 H141 L161 104 L141 124 H151 Z M198 104 L178 84 H168 L188 104 L168 124 H178 Z", day: "#A16207", night: "#FACC15" },
+];
+const levelBadge = (n) => {
+  const b = LEVEL_BADGES[n - 1];
+  return `<svg class="levelSign levelBadge" viewBox="12 32 224 224" role="img" aria-label="Level ${n}, ${LEVELS[n - 1][1]}" style="--badge-day:${b.day};--badge-night:${b.night}"><path fill="currentColor" fill-rule="evenodd" d="${b.path}"/></svg>`;
+};
 const NO_LEVEL = { points: 0, level: 1, title: "Novice", next_level_at: 100 };
 /** The sign in the search bar, beside the Menu; tapping it opens Your level. */
 function showLevelBadge(l) {
@@ -1702,15 +1759,15 @@ function showLevel() {
   const from = LEVELS.filter(([at]) => at <= l.points).at(-1)?.[0] ?? 0;
   const next = LEVELS.find(([at]) => at === l.next_level_at);
   const head = Object.assign(document.createElement("div"), { className: "levelHead" });
-  head.innerHTML = `${levelSign(l.level)}<div><div class="levelTitle"></div><div class="levelPoints"></div></div>`;
+  head.innerHTML = `${levelBadge(l.level)}<div><div class="levelTitle"></div><div class="levelPoints"></div></div>`;
   head.querySelector(".levelTitle").textContent = l.title;
   head.querySelector(".levelPoints").textContent = `${l.points} points`;
   // The road to the next level: covered in blue, your own car on it, the next level's sign at its end.
   const pct = l.next_level_at ? Math.round(100 * (l.points - from) / (l.next_level_at - from)) : 100;
   const bar = Object.assign(document.createElement("div"), { className: "levelRoad" });
   bar.setAttribute("role", "img");
-  bar.ariaLabel = next ? `${pct}% of the way to ${next[1]}` : "Top level";
-  bar.innerHTML = `<div class="road"><div class="covered"></div></div><img class="roadCar" alt="">${next ? levelSign(l.level + 1) : ""}`;
+  bar.ariaLabel = next ? `${pct}% of the way to Level ${l.level + 1}, ${next[1]}` : "Top level";
+  bar.innerHTML = `<div class="road"><div class="covered"></div></div><img class="roadCar" alt="">${next ? levelBadge(l.level + 1) : ""}`;
   bar.style.setProperty("--p", pct / 100);
   bar.querySelector(".roadCar").src = carCanvas(vehicle()).toDataURL();
   showSheet("Your level", head, bar,
@@ -1733,7 +1790,7 @@ function showEarnPoints() {
 /** The five levels, each with its sign and the points it takes; yours says so. */
 function showAllLevels() {
   const now = (cachedLevel() ?? NO_LEVEL).level;
-  showSheet("Levels", ...LEVELS.map(([at, title], i) => levelRow(levelSign(i + 1), title, i + 1 === now ? "You're here" : `${at} points`)), backButton());
+  showSheet("Levels", ...LEVELS.map(([at, title], i) => levelRow(levelBadge(i + 1), title, i + 1 === now ? "You're here" : `${at} points`)), backButton());
 }
 
 function showMenu() {
