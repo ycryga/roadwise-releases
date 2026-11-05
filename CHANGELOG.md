@@ -3,6 +3,13 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.23.0 — 2026-11-05
+
+- **Level colours for your car**: Forest green at Scout, Cyber cyan at Road Hero, Midnight obsidian at
+  Captain and Diraja gold at King of the Road. Colours you haven't reached yet show in the car colour
+  list with a lock and how many points you still need.
+- In the browser version too.
+
 ## 0.22.0 — 2026-11-05
 
 - **Speed limit changed?** Tap the speed limit sign on the speed bubble and pick the new limit. Other
