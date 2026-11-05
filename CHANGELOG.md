@@ -3,6 +3,18 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.24.0 — 2026-11-06
+
+- **Route colours**: pick your route line's colour next to the car colours. Mana blue for everyone;
+  Emerald at Scout, Electric cyan at Road Hero, Royal violet at Captain and Golden highway (a dark
+  road with gold edges) at King of the Road. Each has its own night version, and slow and stopped
+  traffic still show on every one.
+- **Points after you arrive**: once you've stopped, Mana tells you what you earned ("+20 points") or
+  your new level and what it unlocked. Never while you're driving.
+- Arriving is now said by voice only, without a pop-up.
+- The gold car colour is now called **Champion gold**.
+- In the browser version too.
+
 ## 0.23.0 — 2026-11-05
 
 - **Level colours for your car**: Forest green at Scout, Cyber cyan at Road Hero, Midnight obsidian at
