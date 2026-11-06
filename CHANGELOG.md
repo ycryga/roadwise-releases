@@ -3,6 +3,19 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.25.0 — 2026-11-06
+
+- **More report types**: report a **roadblock** (under Police), a **blocked lane** (left, centre or right)
+  and a **pile-up** (under Crash). Drivers coming up to them hear "Roadblock ahead", "Left lane blocked
+  ahead" or "Pile-up ahead".
+- **Other side**: when the police or a crash is on the opposite side of the road, choose **Other side**
+  so only drivers going that way are warned.
+- **Reports last as long as they should**: a traffic jam goes after 30 minutes, the police after an
+  hour, a pothole stays up to a week; every "still there" keeps it longer.
+- The level sign in the search bar is now your level's own badge, in its colour.
+- Tidier code underneath (no change to how anything works).
+- In the browser version too.
+
 ## 0.24.0 — 2026-11-06
 
 - **Route colours**: pick your route line's colour next to the car colours. Mana blue for everyone;
