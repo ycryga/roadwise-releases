@@ -61,15 +61,17 @@ const PLACE_KINDS = [
 
 const REPORT_TYPES = [
   { key: "police", label: "Police", color: "#2457E6", glyph: "local_police", short: "Police", subtypes: [
-    ["visible", "Police", "Police", "local_police"], ["hidden", "Hidden police", "Hidden", "visibility_off"], ["mobile_camera", "Mobile speed camera", "Camera", "photo_camera"]] },
+    ["roadblock", "Roadblock", "Roadblock", "roadblock"], ["visible", "Police", "Police", "local_police"], ["hidden", "Hidden police", "Hidden", "visibility_off"], ["mobile_camera", "Mobile speed camera", "Camera", "photo_camera"]] },
   { key: "accident", label: "Accident", color: "#CE1126", glyph: "car_crash", short: "Crash", subtypes: [
-    ["minor", "Minor accident", "Minor", "minor_crash"], ["major", "Serious accident", "Serious", "emergency"]] },
+    ["pile_up", "Pile-up", "Pile-up", "pile_up"], ["minor", "Minor accident", "Minor", "minor_crash"], ["major", "Serious accident", "Serious", "emergency"]] },
   { key: "traffic", label: "Traffic jam", color: "#9334E6", glyph: "traffic_jam", short: "Traffic", subtypes: [
     ["slow", "Slow traffic", "Slow", "speed"], ["heavy", "Heavy traffic", "Heavy", "traffic_jam"], ["standstill", "Traffic at a standstill", "Stopped", "traffic_jam"]] },
   { key: "hazard", label: "Hazard", color: "#F29900", glyph: "warning", short: "Hazard", subtypes: [
     ["pothole", "Pothole", "Pothole", "tire_repair"], ["object", "Object on the road", "Object", "inventory_2"], ["stopped_vehicle", "Stopped vehicle", "Car", "car_repair"],
     ["animal", "Animal on the road", "Animal", "pets"], ["signal_out", "Traffic lights out", "Lights", "traffic"], ["roadworks", "Roadworks", "Roadworks", "construction"],
     ["flood", "Flooding", "Flood", "flood"], ["slippery", "Slippery road", "Slippery", "water_drop"], ["low_visibility", "Poor visibility", "Fog", "foggy"]] },
+  { key: "blocked_lane", label: "Blocked lane", color: "#F29900", glyph: "lane_center", short: "Blocked lane", subtypes: [
+    ["left", "Left lane blocked", "Left", "lane_left"], ["center", "Centre lane blocked", "Centre", "lane_center"], ["right", "Right lane blocked", "Right", "lane_right"]] },
   { key: "closure", label: "Road closed", color: "#5F6368", glyph: "block", short: "Closed", subtypes: [] },
 ].map((t) => ({ ...t, subtypes: t.subtypes.map(([key, title, short, glyph]) => ({ key, title, short, glyph })) }));
 
@@ -232,7 +234,7 @@ map.on("load", () => {
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
   map.addLayer({ id: "reports", type: "symbol", source: "reports", filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-allow-overlap": true, "icon-ignore-placement": true }, paint: { "icon-opacity": ["get", "opacity"] } });
-  // While driving: one white arrow at the next turn (see drawTurnArrow).
+  // While driving: white arrows at turns ahead (see drawTurnArrow).
   map.addSource("turn", { type: "geojson", data: empty });
   map.addLayer({ id: "turn-line", type: "line", source: "turn", filter: ["==", ["geometry-type"], "LineString"],
     paint: { "line-color": "#fff", "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -301,7 +303,7 @@ function turnHeadImage() {
 
 /**
  * The stretch of [line] from [before] metres ahead of the turn at [at] to [after] metres past it, as the
- * app's turnArrowLine: the one arrow on the route while driving.
+ * app's turnArrowLine: a turn arrow on the route while driving.
  */
 function turnArrowLine(line, at, before, after) {
   if (!line.length) return [];
@@ -436,42 +438,36 @@ function carCanvas(kind, colour = carColour()) {
 function chooseCarColour() {
   const now = carColour();
   const level = cachedLevel()?.level ?? 1, points = cachedLevel()?.points ?? 0;
-  showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label, , unlockLevel]]) => {
+  function colourRow(label, unlockLevel, chosen, leadHtml, onPick, prepare) {
     const b = document.createElement("button");
     const locked = unlockLevel > level;
     const lockText = locked ? `Level ${unlockLevel} · ${LEVELS[unlockLevel - 1][0] - points} more points` : "";
     b.className = `menuRow${locked ? " lockedColour" : ""}`;
-    b.setAttribute("aria-label", locked ? `${label}, Locked, ${lockText.replace(" · ", ", ")}` : key === now ? `${label}, In use` : label);
-    b.innerHTML = `<img class="vehicle" alt=""><span class="label"></span><span class="value"></span>`;
-    b.querySelector("img").src = carCanvas(vehicle(), key).toDataURL();
+    b.setAttribute("aria-label", locked ? `${label}, Locked, ${lockText.replace(" · ", ", ")}` : chosen ? `${label}, In use` : label);
+    b.innerHTML = `${leadHtml}<span class="label"></span><span class="value"></span>`;
+    prepare?.(b);
     b.querySelector(".label").textContent = label;
-    b.querySelector(".value").textContent = lockText || (key === now ? "In use" : "");
+    b.querySelector(".value").textContent = lockText || (chosen ? "In use" : "");
     if (locked) b.querySelector(".value").insertAdjacentHTML("afterbegin", '<svg class="colourLock" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9Z"/></svg>');
     b.onclick = () => {
       if (locked) return toast(lockText);
+      onPick();
+    };
+    return b;
+  }
+  showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label, , unlockLevel]]) =>
+    colourRow(label, unlockLevel, key === now, '<img class="vehicle" alt="">', () => {
       try { localStorage.setItem("mana.carColour", key); } catch { return toast("Couldn't save it in your browser"); }
       if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
       chooseVehicle();
-    };
-    return b;
-  }), Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Route colour" }), ...Object.entries(ROUTE_COLOURS).map(([key, [label, dayLine, dayCasing, nightLine, nightCasing, unlockLevel]]) => {
-    const b = document.createElement("button");
-    const locked = unlockLevel > level;
-    const lockText = locked ? `Level ${unlockLevel} · ${LEVELS[unlockLevel - 1][0] - points} more points` : "";
-    b.className = `menuRow${locked ? " lockedColour" : ""}`;
-    b.setAttribute("aria-label", locked ? `${label}, Locked, ${lockText.replace(" · ", ", ")}` : key === routeColour() ? `${label}, In use` : label);
-    b.innerHTML = `<svg class="vehicle routeSwatch" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 22h28" stroke="${night ? nightCasing : dayCasing}" stroke-width="13"/><path d="M8 22h28" stroke="${night ? nightLine : dayLine}" stroke-width="8"/></svg><span class="label"></span><span class="value"></span>`;
-    b.querySelector(".label").textContent = label;
-    b.querySelector(".value").textContent = lockText || (key === routeColour() ? "In use" : "");
-    if (locked) b.querySelector(".value").insertAdjacentHTML("afterbegin", '<svg class="colourLock" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9Z"/></svg>');
-    b.onclick = () => {
-      if (locked) return toast(lockText);
+    }, b => { b.querySelector("img").src = carCanvas(vehicle(), key).toDataURL(); })
+  ), Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Route colour" }), ...Object.entries(ROUTE_COLOURS).map(([key, [label, dayLine, dayCasing, nightLine, nightCasing, unlockLevel]]) =>
+    colourRow(label, unlockLevel, key === routeColour(), `<svg class="vehicle routeSwatch" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 22h28" stroke="${night ? nightCasing : dayCasing}" stroke-width="13"/><path d="M8 22h28" stroke="${night ? nightLine : dayLine}" stroke-width="8"/></svg>`, () => {
       try { localStorage.setItem("mana.routeColour", key); } catch { return toast("Couldn't save it in your browser"); }
       recolorRoute();
       chooseVehicle();
-    };
-    return b;
-  }));
+    })
+  ));
 }
 
 /** The vehicles to drive as, each in its own colours; the one in use is marked. Back to the Menu after. */
@@ -646,6 +642,7 @@ function onLocation() {
     if (u.snapped) shown = u.snapped;
     showNav(u);
     checkFeatures(state.here);
+    checkReportWarnings(state.here);
   }
   moveCar(shown, state.heading ?? 0);
   updateTheme();
@@ -1202,6 +1199,7 @@ $("exit").onclick = () => stopNavigation();
 $("navAddStop").onclick = () => showStopTiles();
 
 function startNavigation() {
+  state.reportsWarned = new Set();
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
   if (!r) return;
@@ -1332,8 +1330,7 @@ function showNav(u) {
 }
 
 const SIGN_REACH_METERS = 3000;
-function limitSignFacesRoute(f) {
-  const hit = snap(f.at, state.nav.route.points);
+function limitSignFacesRoute(f, hit = snap(f.at, state.nav.route.points)) {
   return hit != null && (f.heading == null || angleBetween(f.heading, hit.bearing) <= 60);
 }
 function limitSignAt(at) {
@@ -1402,9 +1399,9 @@ async function keepAwake(on) {
 // The lock is dropped whenever the page is hidden; take it again on coming back.
 document.addEventListener("visibilitychange", () => { if (state.nav && document.visibilityState === "visible") keepAwake(true); });
 
-function say(text) {
+function say(text, interrupt = true) {
   if (!("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
+  if (interrupt) speechSynthesis.cancel();
   speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(text), { lang: "en-GB" }));
 }
 
@@ -1501,7 +1498,6 @@ async function refreshIncidents() {
   map.getSource("incidents").setData(fc(state.incidents.map((inc, i) => pointFeature(inc.at, { i, icon: badge(inc.glyph, inc.color) }))));
 }
 
-/** [read]: a POST that answers with rows (an rpc function), not just "done". */
 /** Adds a row with this browser's id, for levels; a database without the column yet (levels.sql) still gets it. */
 async function addMine(table, row) {
   try { await supabase("POST", table, { ...row, device_id: deviceId() }); } catch (e) {
@@ -1509,6 +1505,7 @@ async function addMine(table, row) {
     await supabase("POST", table, row);
   }
 }
+/** [read]: a POST that answers with rows (an rpc function), not just "done". */
 async function supabase(method, path, body, read = false) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -1520,13 +1517,16 @@ async function supabase(method, path, body, read = false) {
 }
 
 async function refreshReports() {
-  const rows = await supabase("GET", "live_reports?select=id,type,subtype,lat,lng,created_at,confirmed_at&order=confirmed_at.desc&limit=500").catch(() => null);
+  const rows = await supabase("GET", "live_reports?select=*&order=confirmed_at.desc&limit=500").catch(() => null);
   if (!rows) return;
   state.reports = rows.map((r) => {
     const type = REPORT_TYPES.find((t) => t.key === r.type) ?? REPORT_TYPES[3];
     const sub = type.subtypes.find((s) => s.key === r.subtype);
     const created = Date.parse(r.created_at), confirmed = r.confirmed_at ? Date.parse(r.confirmed_at) : created;
-    return { id: r.id, at: [r.lng, r.lat], title: sub?.title ?? type.label, glyph: sub?.glyph ?? type.glyph, color: type.color, created, confirmed };
+    const title = sub?.title ?? type.label;
+    const warning = ["roadblock", "pile_up"].includes(sub?.key) || type.key === "blocked_lane"
+      ? `${title} ahead` : `${title} reported ahead`;
+    return { heading: r.heading ?? null, warning, id: r.id, at: [r.lng, r.lat], title, glyph: sub?.glyph ?? type.glyph, color: type.color, created, confirmed };
   });
   map.getSource("reports")?.setData(fc(state.reports.map((r) => {
     const minutes = (Date.now() - r.confirmed) / 60000;
@@ -1635,8 +1635,10 @@ function askFeature(f) {
     { sprite: "close", label: "No", color: NEUTRAL_TILE, pick: answer(false) }]);
   setTimeout(() => { if ($("sheetTitle").textContent === question) hideCard($("sheet")); }, 15000);
 }
-function showSubtypes(t) {
-  const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s) }));
+function showSubtypes(t, otherSide = false) {
+  const tiles = t.subtypes.map((s) => ({ glyph: s.glyph, label: s.short, color: t.color, pick: () => sendReport(t, s, otherSide) }));
+  if (t.key === "police" || t.key === "accident") tiles.push({ glyph: "other_side", label: "Other side", color: t.color,
+    selected: otherSide, pick: () => showSubtypes(t, !otherSide) });
   if (t.key === "hazard") tiles.push({ glyph: t.glyph, label: "Other", color: t.color, pick: () => sendReport(t, null) });
   tiles.push({ sprite: "back", label: "Back", color: NEUTRAL_TILE, pick: $("reportButton").onclick });
   showTiles(t.short, tiles);
@@ -1647,13 +1649,23 @@ function showTiles(title, tiles) {
   $("tiles").replaceChildren(...tiles.map((t) => {
     const b = document.createElement("button");
     b.className = "tile";
-    if (t.selected) { b.classList.add("currentLimit"); b.setAttribute("aria-current", "true"); }
+    if (t.selected) b.classList.add("currentLimit");
     b.style.setProperty("--tile", t.color);
-    // A speed limit tile is the number in a red ring, like the real sign.
-    b.innerHTML = t.sign ? `<b class="limitSign"></b>` : t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
-      : `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
-    if (t.sign) { b.querySelector("b").textContent = t.sign; b.setAttribute("aria-label", `${t.sign} km/h${t.selected ? ", current" : ""}`); if (t.selected) { const label = document.createElement("span"); label.textContent = "Current"; b.append(label); } }
-    else {
+    if (t.sign) {
+      if (t.selected) b.setAttribute("aria-current", "true");
+      // A speed limit tile is the number in a red ring, like the real sign.
+      b.innerHTML = `<b class="limitSign"></b>`;
+      b.querySelector("b").textContent = t.sign;
+      b.setAttribute("aria-label", `${t.sign} km/h${t.selected ? ", current" : ""}`);
+      if (t.selected) {
+        const label = document.createElement("span");
+        label.textContent = "Current";
+        b.append(label);
+      }
+    } else {
+      if (t.selected != null) b.setAttribute("aria-pressed", String(t.selected));
+      b.innerHTML = t.sprite ? `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${t.sprite}"/></svg><span></span>`
+        : `<svg viewBox="0 -960 960 960" aria-hidden="true"><path/></svg><span></span>`;
       if (!t.sprite) b.querySelector("path").setAttribute("d", GLYPHS[t.glyph]);
       b.querySelector("span").textContent = t.label;
     }
@@ -1681,11 +1693,24 @@ function showStopTiles() {
 }
 $("sheetClose").onclick = () => (hideCard($("sheet")));
 
-async function sendReport(type, sub) {
+function reportHeading(heading, otherSide) {
+  return heading == null ? null : (Math.round(heading) + (otherSide ? 180 : 0)) % 360;
+}
+function missingReportHeading(message) {
+  return message.includes("heading") && (message.includes("PGRST204") || message.includes("42703"));
+}
+async function sendReport(type, sub, otherSide = false) {
   hideCard($("sheet"));
   const [lng, lat] = state.here;
+  const heading = reportHeading(state.heading, otherSide);
+  if (otherSide && heading == null) return toast("Waiting for your direction. Try again once GPS has a heading.");
+  const row = { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}), ...(heading != null ? { heading } : {}) };
   try {
-    await addMine("reports", { type: type.key, lat, lng, ...(sub ? { subtype: sub.key } : {}) });
+    try { await addMine("reports", row); } catch (e) {
+      if (otherSide || heading == null || !missingReportHeading(e.message)) throw e;
+      delete row.heading;
+      await addMine("reports", row);
+    }
     toast(`Reported: ${sub?.title ?? type.label}`);
     refreshReports();
   } catch (e) {
@@ -1730,7 +1755,6 @@ function showSaved() {
     Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Nearby" }), ...pairs);
 }
 
-/** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
 /** Driver levels (docs/levels/PLAN.md): the server works out points from what other drivers confirmed (levels.sql). */
 const LEVELS = [[0, "Novice"], [100, "Scout"], [300, "Road Hero"], [750, "Captain"], [1500, "King of the Road"]];
 function arrivalMessage(seenPoints, seenLevel, now) {
@@ -1775,11 +1799,6 @@ async function fetchLevel() {
   try { localStorage.setItem("mana.level", JSON.stringify(l)); } catch { /* Shown, just not kept. */ }
   return l;
 }
-/** The level sign (design/levels/level-sign.svg): a navy direction sign with the level [n] on it. */
-const levelSign = (n) => `<svg class="levelSign" viewBox="0 0 256 256" aria-hidden="true"><path fill="#7A8599" d="M87 150H105V226H87Z"/>` +
-  `<path fill="#002B7F" d="M36 36H176L236 96L176 156H36A16 16 0 0 1 20 140V52A16 16 0 0 1 36 36Z"/>` +
-  `<path fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" d="M40 56H167L207 96L167 136H40Z"/>` +
-  `<text x="114" y="96" dy=".35em" text-anchor="middle" fill="#fff" font-weight="700" font-size="78">${n}</text></svg>`;
 /** Approved badge masters; CSS switches the pair with the existing root night class. */
 const LEVEL_BADGES = [
   { path: "M76 224 H124 V216 L112 216 V144 H176 L216 104 L176 64 H44 L32 76 V132 L44 144 H88 V216 L76 216 Z M180 104 L152 76 H136 L164 104 L136 132 H152 Z", day: "#002B7F", night: "#8FAEFF" },
@@ -1793,10 +1812,10 @@ const levelBadge = (n) => {
   return `<svg class="levelSign levelBadge" viewBox="12 32 224 224" role="img" aria-label="Level ${n}, ${LEVELS[n - 1][1]}" style="--badge-day:${b.day};--badge-night:${b.night}"><path fill="currentColor" fill-rule="evenodd" d="${b.path}"/></svg>`;
 };
 const NO_LEVEL = { points: 0, level: 1, title: "Novice", next_level_at: 100 };
-/** The sign in the search bar, beside the Menu; tapping it opens Your level. */
+/** The badge in the search bar, beside the Menu; tapping it opens Your level. */
 function showLevelBadge(l) {
   const b = $("levelButton");
-  b.innerHTML = levelSign(l.level);
+  b.innerHTML = levelBadge(l.level);
   b.title = b.ariaLabel = `Level ${l.level}, ${l.title}, ${l.points} points. Opens Your level`;
 }
 function refreshLevel() { fetchLevel().then(showLevelBadge).catch(() => {}); }
@@ -1805,11 +1824,11 @@ if (SUPABASE_URL) {
   $("levelButton").hidden = false;
   $("levelButton").onclick = showLevel;
   refreshLevel();
-  // Points come in as other drivers confirm, so the sign catches up whenever the page is looked at again.
+  // Points come in as other drivers confirm, so the badge catches up whenever the page is looked at again.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLevel(); });
 }
 
-/** A row on a level page, as in the Menu: [sprite] or a level sign, [label], and [value] on the right. */
+/** A row on a level page, as in the Menu: [sprite] or a level badge, [label], and [value] on the right. */
 function levelRow(lead, label, value, onclick) {
   const b = Object.assign(document.createElement(onclick ? "button" : "div"), { className: onclick ? "menuRow" : "menuRow still" });
   b.innerHTML = `${lead}<span class="label"></span><span class="value"></span>`;
@@ -1821,7 +1840,7 @@ function levelRow(lead, label, value, onclick) {
 const backButton = () => Object.assign(document.createElement("button"), { className: "plain", textContent: "Back", onclick: showLevel });
 
 /**
- * Your level, first page: the sign, your title and points, how far the next level is. How to earn points
+ * Your level, first page: the badge, your title and points, how far the next level is. How to earn points
  * and the levels are a tap away, each on its own page, so no page holds everything.
  */
 function showLevel() {
@@ -1858,12 +1877,13 @@ function showEarnPoints() {
     backButton());
 }
 
-/** The five levels, each with its sign and the points it takes; yours says so. */
+/** The five levels, each with its badge and the points it takes; yours says so. */
 function showAllLevels() {
   const now = (cachedLevel() ?? NO_LEVEL).level;
   showSheet("Levels", ...LEVELS.map(([at, title], i) => levelRow(levelBadge(i + 1), title, i + 1 === now ? "You're here" : `${at} points`)), backButton());
 }
 
+/** The Menu, from the ☰ in the search bar, in groups as the app's (the web has no driving settings). */
 function showMenu() {
   $("search").blur();
   showResults([]);
@@ -2061,3 +2081,21 @@ setTimeout(checkForUpdate, 5000);
 setInterval(checkForUpdate, 30 * 60_000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
 startLocation();
+
+/** Speak once for each report ahead on the route. */
+function checkReportWarnings(here) {
+  if (!state.nav) return;
+  const hereHit = snap(here, state.nav.route.points);
+  if (!hereHit) return;
+  state.reportsWarned ??= new Set();
+  for (const r of state.reports) {
+    if (!r.warning || state.reportsWarned.has(r.id) || distance(here, r.at) > 500) continue;
+    const hit = snap(r.at, state.nav.route.points);
+    if (!hit || hit.meters > 40 || !limitSignFacesRoute(r, hit)) continue;
+    if (hit.segment < hereHit.segment || (hit.segment === hereHit.segment &&
+        distance(state.nav.route.points[hit.segment], hit.point) < distance(state.nav.route.points[hereHit.segment], hereHit.point))) continue;
+    state.reportsWarned.add(r.id);
+    say(r.warning, false);
+    return;
+  }
+}
