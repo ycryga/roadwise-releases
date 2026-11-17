@@ -14,7 +14,7 @@ const TRAFFIC_MIN_ZOOM = 10;
 const TRAFFIC_SLOW_BELOW = 0.75;
 const INCIDENTS_MIN_ZOOM = 11;
 const CLUSTER_MAX_ZOOM = 13;
-const INCIDENTS_REFRESH_MS = 3 * 60_000;
+const INCIDENTS_REFRESH_MS = 10 * 60_000;
 const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
@@ -207,7 +207,8 @@ map.on("load", () => {
   for (const s of ["alts", "route", "driven", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
-  map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 7, "line-opacity": 0.8 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "alts-casing", type: "line", source: "alts", paint: { "line-color": night ? "#15181B" : "#6E757C", "line-width": night ? 8.5 : 8, "line-opacity": night ? .9 : .85 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 5.5, "line-opacity": night ? .88 : 1 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": css("--mana-route-driven"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": ROUTE_COLOURS[routeColour()][night ? 4 : 2], "line-width": 13 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": ROUTE_COLOURS[routeColour()][night ? 3 : 1], "line-width": 8 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -259,7 +260,10 @@ map.on("load", () => {
 });
 map.on("moveend", () => refreshIncidents());
 map.on("dragstart", () => { state.following = false; });
-map.on("click", "alts", (e) => selectRoute(e.features[0].properties.index));
+map.on("click", "alts", (e) => {
+  if (state.nav && map.queryRenderedFeatures(e.point, {layers:["route"]}).length) return;
+  selectRoute(e.features[0].properties.index);
+});
 map.on("click", "stops", (e) => { const stop = state.stops[e.features[0].properties.i]; if (stop) removeStop(stop); });
 map.on("click", "reports", (e) => {
   const r = state.reports.find((x) => x.id === e.features[0].properties.id);
@@ -447,7 +451,9 @@ function chooseCarColour() {
     b.innerHTML = `${leadHtml}<span class="label"></span><span class="value"></span>`;
     prepare?.(b);
     b.querySelector(".label").textContent = label;
-    b.querySelector(".value").textContent = lockText || (chosen ? "In use" : "");
+    b.querySelector(".value").textContent = locked ? "" : chosen ? "In use" : "";
+    // Locked: what it takes goes under the name, so both fit on narrow phones (720 px).
+    if (locked) b.querySelector(".label").append(Object.assign(document.createElement("small"), { className: "lockNeed", textContent: lockText }));
     if (locked) b.querySelector(".value").insertAdjacentHTML("afterbegin", '<svg class="colourLock" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2ZM9 6a3 3 0 0 1 6 0v2H9Z"/></svg>');
     b.onclick = () => {
       if (locked) return toast(lockText);
@@ -577,6 +583,13 @@ function applyNight(on) {
   document.documentElement.classList.toggle("night", on);
   document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#002B7F";
   recolorRoute();
+  if (map.getLayer("alts")) map.setPaintProperty("alts", "line-color", on ? "#8E96A0" : "#9AA0A6");
+  if (map.getLayer("alts-casing")) {
+    map.setPaintProperty("alts-casing", "line-color", on ? "#15181B" : "#6E757C");
+    map.setPaintProperty("alts-casing", "line-width", on ? 8.5 : 8);
+    map.setPaintProperty("alts-casing", "line-opacity", on ? .9 : .85);
+    map.setPaintProperty("alts", "line-opacity", on ? .88 : 1);
+  }
   const paint = (id, prop, value) => {
     const key = `${id}|${prop}`;
     if (on) {
@@ -983,29 +996,45 @@ async function planRoute(fit) {
   }
 }
 
-/** OSRM's routes through [points] (start, stops, destination), then TomTom's live time for each. Choices only come between two points. */
-async function fetchRoutes(points, alternatives) {
+/** Route traffic uses the same thinning for planning and driving. */
+async function routeTraffic(points, signal) {
+  const step = Math.max(1, Math.floor(points.length / 600));
+  const thin = points.filter((_, i) => i % step === 0 || i === points.length - 1).map(([lng, lat]) => [lat, lng]);
+  return trafficCall("", { route: thin }, signal);
+}
+
+function applyRouteTraffic(r, t) {
+  trafficPaused = false;
+  r.seconds = t.seconds;
+  r.delay = t.delaySeconds || 0;
+  r.limits = (t.limits || []).filter((s) => s.points.length >= 2).map((s) => ({
+    kmh: s.kmh, points: s.points.map(([lat, lng]) => [lng, lat]),
+  }));
+  r.slow = (t.slow || []).filter((s) => s.points.length >= 2).map((s) => ({
+    points: s.points.map(([lat, lng]) => [lng, lat]), delay: s.delay || 0,
+    color: s.level >= 4 || s.kind === "ROAD_CLOSURE" ? "#5F1A1A" : s.level >= 3 ? "#D93025" : "#F29900",
+  }));
+}
+
+/** OSRM choices, then live time; driving requests stay serial and stop on failure. */
+async function fetchRoutes(points, alternatives, drive = null) {
   const alt = alternatives && points.length === 2 ? "&alternatives=3" : "";
   const url = `${OSRM}${points.map((p) => p.join(",")).join(";")}?overview=full&geometries=geojson&steps=true${alt}`;
-  const json = await fetch(url).then((r) => r.json()).catch(() => null);
+  const json = await fetch(url, drive ? { signal: drive.trafficController.signal } : undefined).then((r) => r.json()).catch(() => null);
   if (json?.code !== "Ok") return [];
-  const routes = json.routes.map(parseRoute);
-  await Promise.all(routes.map(async (r) => {
-    const step = Math.max(1, Math.floor(r.points.length / 600));
-    const thin = r.points.filter((_, i) => i % step === 0 || i === r.points.length - 1).map(([lng, lat]) => [lat, lng]);
-    const t = await trafficCall("", { route: thin }).catch((e) => { trafficPaused = e.message === "traffic 429"; return null; });
+  const routes = (drive ? json.routes.slice(0, 1) : json.routes).map(parseRoute);
+  const live = async (r) => {
+    if (drive?.trafficStopped) return;
+    const t = await (drive && !driveTrafficAllowed(drive) ? Promise.resolve(null) : routeTraffic(r.points, drive?.trafficController?.signal)).catch((e) => {
+      trafficPaused = e.message === "traffic 429";
+      if (drive) drive.trafficStopped = true;
+      return null;
+    });
     if (!t) return;
-    trafficPaused = false;
-    r.seconds = t.seconds;
-    r.delay = t.delaySeconds || 0;
-    r.limits = (t.limits || []).filter((s) => s.points.length >= 2).map((s) => ({
-      kmh: s.kmh, points: s.points.map(([lat, lng]) => [lng, lat]),
-    }));
-    r.slow = (t.slow || []).filter((s) => s.points.length >= 2).map((s) => ({
-      points: s.points.map(([lat, lng]) => [lng, lat]),
-      color: s.level >= 4 || s.kind === "ROAD_CLOSURE" ? "#5F1A1A" : s.level >= 3 ? "#D93025" : "#F29900",
-    }));
-  }));
+    applyRouteTraffic(r, t);
+  };
+  if (drive) { for (const r of routes) await live(r); }
+  else await Promise.all(routes.map(live));
   return routes;
 }
 
@@ -1021,6 +1050,7 @@ function parseRoute(r) {
 }
 
 function selectRoute(i) {
+  if (state.nav) return switchDriveRoute(state.nav.alternatives[Number(i)]);
   state.selected = i;
   drawRoutes();
   const list = $("routes");
@@ -1039,7 +1069,8 @@ function selectRoute(i) {
 
 function drawRoutes() {
   const r = state.nav?.route ?? state.routes[state.selected];
-  const alts = state.nav ? [] : state.routes.map((x, k) => (k === state.selected ? null : lineFeature(x.points, { index: k }))).filter(Boolean);
+  drawDriveAlternatives();
+  const alts = state.nav ? (state.nav.alternatives || []).map((a,k) => lineFeature(a.route.points, {index:k})) : state.routes.map((x, k) => (k === state.selected ? null : lineFeature(x.points, { index: k }))).filter(Boolean);
   map.getSource("alts")?.setData(fc(alts));
   const progress = state.nav?.progress;
   const segment = progress && r ? Math.max(0, Math.min(progress.segment, r.points.length - 2)) : -1;
@@ -1048,8 +1079,9 @@ function drawRoutes() {
   map.getSource("driven")?.setData(driven.length > 1 ? fc([lineFeature(driven)]) : empty);
   map.getSource("route")?.setData(remaining ? lineFeature(remaining) : empty);
   // Drawn on the route's own line: TomTom's version of the road runs a little beside it.
-  map.getSource("slow")?.setData(fc((r?.slow ?? []).map((s) => along(r.points, s.points[0], s.points.at(-1)))
-    .map((points, i) => points.length >= 2 && lineFeature(points, { color: r.slow[i].color })).filter(Boolean)));
+  const slow = state.nav?.trafficSlow ?? r?.slow ?? [];
+  map.getSource("slow")?.setData(fc(slow.map((s) => along(remaining || r.points, s.points[0], s.points.at(-1)))
+    .map((points, i) => points.length >= 2 && distance(points[0], points.at(-1)) > 0.1 && lineFeature(points, { color: slow[i].color })).filter(Boolean)));
   map.getSource("dest")?.setData(state.destination ? fc([pointFeature(state.destination.at)]) : empty);
   map.getSource("stops")?.setData(fc(state.stops.map((p, i) => pointFeature(p.at, { i, n: String(i + 1) }))));
 }
@@ -1198,14 +1230,144 @@ $("go").onclick = () => startNavigation();
 $("exit").onclick = () => stopNavigation();
 $("navAddStop").onclick = () => showStopTiles();
 
+// Twin: app/src/main/java/com/example/roadwise/DrivingRoutes.kt routeOfferEligible; change together.
+function routeOfferEligible(current, other, previous) {
+  const saved = current - other;
+  return saved >= 300 && saved >= current * .15 && (previous == null || saved >= previous + 180);
+}
+
+// Sample segments too: routing geometry may have very few vertices on straight roads.
+function otherRouteSamples(points) {
+  const out = [points[0]], step = Math.max(30, cumulative(points).at(-1) / 800);
+  let next = step;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i], length = distance(a,b);
+    while (length > 0 && next <= length) {
+      out.push([a[0] + (b[0]-a[0])*next/length, a[1] + (b[1]-a[1])*next/length]);
+      next += step;
+    }
+    next -= length;
+  }
+  out.push(points.at(-1));
+  return out;
+}
+// Twin: app/src/main/java/com/example/roadwise/DrivingRoutes.kt otherRouteShape; change together.
+function otherRouteShape(main, alternative, start = 0) {
+  const samples = otherRouteSamples(main), lengths = cumulative(samples);
+  const first = samples.findIndex((p,i) => lengths[i] >= start && snap(p, alternative).meters > 30);
+  if (first < 0) return null;
+  let best = [], run = [];
+  for (const p of otherRouteSamples(alternative)) {
+    if (snap(p, main).meters > 30) { run.push(p); if (run.length > best.length) best = run.slice(); }
+    else run = [];
+  }
+  return best.length ? { split: lengths[Math.max(0, first - 1)], pill: best[Math.floor(best.length / 2)] } : null;
+}
+function otherRouteReachable(shape, position) { return shape != null && position <= shape.split + 30; }
+
+function hideRouteOffer() {
+  const el = document.getElementById('routeOffer');
+  if (el) { clearTimeout(el.timer); el.remove(); }
+  document.body.classList.remove('route-offer');
+}
+function showRouteOffer(nav, candidate, seconds) {
+  hideRouteOffer();
+  nav.offers.set(candidate.route, seconds);
+  const el = document.createElement('div');
+  el.id = 'routeOffer'; el.className = 'card'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'Faster route available');
+  const text = document.createElement('span');
+  text.textContent = `${Math.floor(seconds / 60)} min faster via ${candidate.route.via.split(',')[0] || 'other route'}`;
+  text.title = text.textContent;
+  const button = document.createElement('button'); button.className = 'primary'; button.textContent = 'Switch'; button.onclick = () => switchDriveRoute(candidate);
+  const close = document.createElement('button'); close.className = 'plain'; close.textContent = '×'; close.setAttribute('aria-label', 'Dismiss faster route offer'); close.onclick = hideRouteOffer;
+  el.append(text, button, close); document.body.append(el); document.body.classList.add('route-offer');
+  el.timer = setTimeout(hideRouteOffer, 15000);
+}
+function driveTrafficAllowed(nav) {
+  const now = performance.now();
+  nav.trafficCalls ??= [];
+  nav.trafficCalls = nav.trafficCalls.filter(t => now - t < 1800000);
+  if (nav.trafficCalls.length >= 18) return false;
+  nav.trafficCalls.push(now); return true;
+}
+function driveAlternative(r, main) {
+  return { route: r, cumulative: cumulative(r.points), shape: otherRouteShape(main.points, r.points) };
+}
+function alternativeSeconds(a, here) {
+  const at = snap(here, a.route.points), from = a.cumulative[at.segment] + distance(a.route.points[at.segment], at.point);
+  if (!a.trafficTime) setTrafficTime(a, a.route, 0);
+  const t = a.trafficTime;
+  return trafficTimeLeft(t.total, t.free, from - t.from, t.stretches);
+}
+function switchDriveRoute(candidate) {
+  const nav = state.nav;
+  if (!nav || nav.rerouting || !nav.alternatives.includes(candidate)) return;
+  pruneDriveAlternatives(nav);
+  if (!nav.alternatives.includes(candidate)) return;
+  nav.trafficController.abort(); nav.trafficController = new AbortController();
+  const seconds = alternativeSeconds(candidate,state.here);
+  const old = { route: nav.route, cumulative: nav.cumulative, trafficTime: nav.trafficTime, trafficSlow: nav.trafficSlow };
+  const remaining = nav.alternatives.filter(a => a !== candidate).concat(old);
+  Object.assign(nav, { route: candidate.route, cumulative: candidate.cumulative, trafficTime: candidate.trafficTime, trafficSlow: candidate.trafficSlow,
+    progress: snap(state.here, candidate.route.points), off: 0, far: false, near: false });
+  const pos = nav.cumulative[nav.progress.segment] + distance(nav.route.points[nav.progress.segment], nav.progress.point);
+  nav.stepIndex = nav.route.steps.findIndex((step,i) => {
+    const hit = snap(step.at,nav.route.points);
+    return i > 0 && nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment],hit.point) > pos + 10;
+  });
+  if (nav.stepIndex < 0) nav.stepIndex = nav.route.steps.length - 1;
+  // Suppress speech caused solely by selecting another route.
+  const step = nav.route.steps[nav.stepIndex], dist = distance(state.here,step.at);
+  nav.far = dist < FAR_METERS; nav.near = dist < NEAR_METERS;
+  nav.arrowFor = step;
+  $("bannerText").textContent = bannerFor(step); $("bannerDistance").textContent = shortDistance(dist);
+  $("arrow").textContent = symbolFor(step); $("then").hidden = true;
+  drawTurnArrow(step);
+  $("navEta").textContent = clock(seconds);
+  $("navLeft").textContent = joinWhole([formatDuration(seconds), shortDistance(nav.cumulative.at(-1)-pos)]);
+  nav.alternatives = remaining.map(a => ({ ...a, shape: otherRouteShape(nav.route.points,a.route.points,pos) })).filter(a => a.shape).slice(0,2);
+  hideRouteOffer(); pruneDriveAlternatives(nav); loadFeatures(nav.route.points); drawRoutes();
+}
+function pruneDriveAlternatives(nav) {
+  if (!nav.progress || !nav.alternatives) return;
+  const pos = nav.cumulative[nav.progress.segment] + distance(nav.route.points[nav.progress.segment],nav.progress.point);
+  const previous = nav.alternatives.length;
+  nav.alternatives = nav.alternatives.filter(a => otherRouteReachable(a.shape,pos));
+  if (previous !== nav.alternatives.length) hideRouteOffer();
+}
+let drivePills = new Map();
+function drawDriveAlternatives() {
+  const nav = state.nav;
+  if (nav) pruneDriveAlternatives(nav);
+  for (const [a, marker] of drivePills) if (!nav?.alternatives.includes(a)) { marker.remove(); drivePills.delete(a); }
+  if (!nav) return;
+  const here = nav.progress?.point || nav.route.points[0];
+  const hit = snap(here, nav.route.points), t = nav.trafficTime;
+  const current = trafficTimeLeft(t.total,t.free,nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment],hit.point) - t.from,t.stretches);
+  for (const a of nav.alternatives || []) {
+    const delta = Math.round((alternativeSeconds(a,here) - current) / 60);
+    const b = drivePills.get(a)?.getElement() || document.createElement('button');
+    b.className = `drive-route-pill${delta < 0 ? ' faster' : ''}`;
+    b.textContent = delta < 0 ? `${-delta} min faster` : `+${delta} min`;
+    b.setAttribute('aria-label', `Other route, ${Math.abs(delta)} minutes ${delta < 0 ? 'faster' : 'slower'}, tap to switch`);
+    b.onclick = e => { e.stopPropagation(); switchDriveRoute(a); };
+    if (!drivePills.has(a)) drivePills.set(a,new maplibregl.Marker({element:b}).setLngLat(a.shape.pill).addTo(map));
+  }
+}
+
 function startNavigation() {
   state.reportsWarned = new Set();
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
   if (!r) return;
+  state.nav?.trafficController.abort();
   pendingArrival = null;
   state.nav = { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, rerouting: false, progress: null,
-    cumulative: cumulative(r.points) };
+    cumulative: cumulative(r.points), trafficStopped: false, trafficAt: performance.now(), trafficController: new AbortController() };
+  setTrafficTime(state.nav, r, 0);
+  state.nav.alternatives = state.routes.filter(x => x !== r).slice(0,2).map(x => driveAlternative(x,r)).filter(a => a.shape);
+  state.nav.offers = new Map();
+  state.nav.trafficCalls = state.routes.map(() => performance.now());
   state.following = true;
   $("searchBox").hidden = true;
   $("banner").hidden = false;
@@ -1228,6 +1390,9 @@ function startNavigation() {
 }
 
 function stopNavigation() {
+  hideRouteOffer();
+  if (state.nav) { state.routes = [state.nav.route, ...state.nav.alternatives.map(a => a.route)]; state.selected = 0; }
+  state.nav?.trafficController.abort();
   state.nav = null;
   keepAwake(false);
   $("searchBox").hidden = false;
@@ -1245,6 +1410,62 @@ function stopNavigation() {
   map.easeTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
   drawRoutes();
   renderTrip();
+}
+
+// Twin: app/src/main/java/com/example/roadwise/TrafficTime.kt trafficTimeLeft; change together.
+function trafficTimeLeft(total, freeSeconds, at, stretches) {
+  const left = Math.max(0, total - at);
+  return (total > 0 ? freeSeconds * left / total : 0) + stretches.reduce((sum, s) =>
+    sum + s.delay * (s.end > s.start ? Math.max(0, Math.min(1, (s.end - at) / (s.end - s.start))) : (at < s.end ? 1 : 0)), 0);
+}
+
+function setTrafficTime(nav, r, from) {
+  nav.trafficSlow = r.slow;
+  const position = (hit) => hit ? nav.cumulative[hit.segment] + distance(r.points[hit.segment], hit.point) : from;
+  nav.trafficTime = { from, total: nav.cumulative.at(-1) - from, free: Math.max(0, r.seconds - r.delay),
+    stretches: r.slow.map((s) => {
+      const a = snap(s.points[0], r.points);
+      const b = a && snap(s.points.at(-1), r.points.slice(a.segment));
+      return { start: position(a) - from, end: position(b && { ...b, segment: b.segment + a.segment }) - from, delay: s.delay || 0 };
+    }) };
+}
+
+async function refreshDriveTraffic(nav) {
+  if (nav.trafficStopped || nav.trafficBusy || nav.rerouting || !nav.progress || performance.now() - nav.trafficAt < 300000) return;
+  nav.trafficAt = performance.now();
+  nav.trafficBusy = true;
+  let settled;
+  nav.trafficDone = new Promise((resolve) => { settled = resolve; });
+  const r = nav.route, at = nav.progress;
+  const from = nav.cumulative[at.segment] + distance(r.points[at.segment], at.point);
+  try {
+    if (!driveTrafficAllowed(nav)) return;
+    const t = await routeTraffic([at.point, ...r.points.slice(at.segment + 1)], nav.trafficController.signal);
+    if (state.nav !== nav || nav.route !== r) return;
+    // Keep route totals for planning; the fresh answer describes only the remainder.
+    const remainder = { points: r.points, slow: [], seconds: 0, delay: 0 };
+    applyRouteTraffic(remainder, t);
+    setTrafficTime(nav, remainder, from);
+    let offer = null;
+    for (const a of nav.alternatives || []) {
+      if (trafficPaused || nav.trafficStopped || !driveTrafficAllowed(nav)) break;
+      const hit = snap(at.point, a.route.points);
+      const response = await routeTraffic([hit.point, ...a.route.points.slice(hit.segment + 1)], nav.trafficController.signal);
+      if (state.nav !== nav || nav.route !== r || !nav.alternatives.includes(a)) return;
+      const fresh = { ...a.route }; applyRouteTraffic(fresh,response);
+      setTrafficTime(a,fresh,a.cumulative[hit.segment] + distance(a.route.points[hit.segment],hit.point));
+      const saved = remainder.seconds - fresh.seconds;
+      if (routeOfferEligible(remainder.seconds,fresh.seconds,nav.offers.get(a.route)) && saved > (offer?.saved || 0)) offer = {a,saved};
+    }
+    if (offer && nav.alternatives.includes(offer.a)) showRouteOffer(nav,offer.a,offer.saved);
+    drawRoutes();
+  } catch (e) {
+    if (state.nav === nav && e.name !== "AbortError") {
+      trafficPaused = e.message === "traffic 429";
+      nav.trafficStopped = true;
+    }
+  }
+  finally { nav.trafficBusy = false; settled(); }
 }
 
 function cumulative(points) {
@@ -1283,7 +1504,8 @@ function navUpdate(nav, here) {
   if (s) {
     const total = nav.cumulative.at(-1);
     left = Math.max(0, total - nav.cumulative[s.segment] - distance(nav.route.points[s.segment], s.point));
-    secondsLeft = total ? (nav.route.seconds * left) / total : 0;
+    const t = nav.trafficTime;
+    secondsLeft = t ? trafficTimeLeft(t.total, t.free, total - left - t.from, t.stretches) : 0;
   }
   return { text, dist, speak, arrived, step, then: after && gap < THEN_SHOWN_METERS ? after : null, gap,
     offRoute: nav.off >= OFF_ROUTE_UPDATES, snapped: s && !off && s.meters < 30 ? s.point : null, progress: s, left, secondsLeft };
@@ -1299,12 +1521,8 @@ function bannerIn() {
 function showNav(u) {
   const nav = state.nav;
   nav.progress = u.progress;
-  const segment = u.progress?.segment ?? 0;
-  const points = nav.route.points;
-  const travelled = u.progress ? [...points.slice(0, segment + 1), u.progress.point] : [];
-  const remaining = u.progress ? [u.progress.point, ...points.slice(segment + 1)] : points;
-  map.getSource("driven")?.setData(travelled.length > 1 ? fc([lineFeature(travelled)]) : empty);
-  map.getSource("route")?.setData(lineFeature(remaining));
+  if (!u.arrived && !u.offRoute) refreshDriveTraffic(nav);
+  drawRoutes();
   const limit = speedLimitAt(state.here, nav.route.limits || []);
   $("currentSpeed").textContent = state.speedKmh == null ? "–" : String(state.speedKmh);
   $("speedLimit").textContent = limit == null ? "–" : String(limit);
@@ -1380,13 +1598,23 @@ function speedLimitAt(at, limits) {
 
 async function reroute() {
   const nav = state.nav;
+  if (nav.rerouting) return;
   nav.rerouting = true;
+  nav.alternatives = []; hideRouteOffer(); drawRoutes();
+  nav.trafficController.abort();
+  // Wait for an aborted refresh to settle before requesting traffic for the new route.
+  await nav.trafficDone;
+  if (state.nav !== nav) return;
+  nav.trafficController = new AbortController();
   say("Rerouting");
-  const [r] = await fetchRoutes([state.here, ...state.stops.map((p) => p.at), state.destination.at], false);
+  const [r] = await fetchRoutes([state.here, ...state.stops.map((p) => p.at), state.destination.at], false, nav);
   if (state.nav !== nav) return;
   nav.rerouting = false;
   if (!r) return;
   Object.assign(nav, { route: r, stepIndex: r.steps.length > 1 ? 1 : 0, far: false, near: false, off: 0, progress: null, cumulative: cumulative(r.points) });
+  nav.trafficAt = performance.now();
+  setTrafficTime(nav, r, 0);
+  loadFeatures(r.points);
   drawRoutes();
 }
 
@@ -1409,7 +1637,7 @@ function instructionFor(step) {
   const onto = step.road ? ` onto ${step.road}` : "";
   const words = { "sharp left": "sharp left", "sharp right": "sharp right", "slight left": "slightly left", "slight right": "slightly right", uturn: "around" };
   const dir = step.modifier ? words[step.modifier] ?? step.modifier : null;
-  const ordinal = (n) => ["first", "second", "fourth", "fifth"][n - 1] ?? `${n}th`;
+  const ordinal = (n) => ["first", "second", "third", "fourth", "fifth"][n - 1] ?? `${n}th`;
   switch (step.type) {
     case "depart": return `Head ${dir ?? "out"}${step.road ? ` on ${step.road}` : ""}`;
     case "arrive": return "Arrive at your destination";
@@ -1439,8 +1667,9 @@ function symbolFor(step) {
 
 // --- Traffic, incidents, reports ---
 
-function trafficCall(query, body) {
+function trafficCall(query, body, signal) {
   return fetch(TRAFFIC + query, {
+    signal,
     method: body ? "POST" : "GET",
     headers: { apikey: SUPABASE_KEY, ...(body ? { "content-type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -1745,8 +1974,27 @@ function showSaved() {
     return b;
   };
   const pair = (...tiles) => { const p = Object.assign(document.createElement("div"), { className: "pair" }); p.append(...tiles); return p; };
-  const slot = (key, label) => tile(key, label, state[key] ? shown(state[key]) : "Tap to set",
-    () => { showResults([]); state[key] ? goTo(state[key]) : startSaving(key); });
+  const slot = (key, label) => {
+    const body = tile(key, label, state[key] ? shown(state[key]) : "Tap to set",
+      () => { showResults([]); state[key] ? goTo(state[key]) : startSaving(key); });
+    if (!state[key]) return body;
+    const edit = document.createElement("button");
+    edit.className = "savedEdit";
+    edit.setAttribute("aria-label", `Change ${label}`);
+    edit.innerHTML = icon("edit");
+    edit.onmousedown = (e) => e.preventDefault();
+    edit.onclick = () => {
+      $("search").blur();
+      const choice = (text, action) => Object.assign(document.createElement("button"), {
+        className: "menuRow", textContent: text, onclick: () => { hideCard($("sheet")); action(); }
+      });
+      showSheet(label, choice("Change", () => startSaving(key)),
+        choice("Remove", () => { saveHomeWork(key, null); showSaved(); }));
+    };
+    const wrapper = Object.assign(document.createElement("div"), { className: "savedSlot" });
+    wrapper.append(body, edit);
+    return wrapper;
+  };
   // One tap searches around here, no typing (as the app's Nearby).
   const kinds = STOP_KINDS.map(([word, label, sprite]) => tile(sprite, label, "", () => { $("search").value = word; search(word, true); }));
   const pairs = [];
@@ -1913,9 +2161,12 @@ function showMenu() {
 }
 
 function saveHomeWork(slot, place) {
-  if (!slot || !place) return;
-  const saved = { name: place.name, detail: place.detail || "", at: place.at.slice() };
-  try { localStorage.setItem(`mana.${slot}`, JSON.stringify(saved)); }
+  if (!slot) return;
+  const saved = place ? { name: place.name, detail: place.detail || "", at: place.at.slice() } : null;
+  try {
+    if (saved) localStorage.setItem(`mana.${slot}`, JSON.stringify(saved));
+    else localStorage.removeItem(`mana.${slot}`);
+  }
   catch { return toast("Couldn't save this place in your browser"); }
   state[slot] = saved;
   if (state.savingSlot) {
@@ -1925,7 +2176,7 @@ function saveHomeWork(slot, place) {
     showClear(false);
     showResults([]);
   }
-  toast(`Saved as ${slot === "home" ? "Home" : "Work"}`);
+  toast(saved ? `Saved as ${slot === "home" ? "Home" : "Work"}` : `${slot === "home" ? "Home" : "Work"} removed`);
   if (state.destination) showSaveState();
 }
 function startSaving(slot) {

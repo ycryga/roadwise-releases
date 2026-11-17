@@ -89,6 +89,10 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 /* Home and Work side by side, so more fits above the keyboard. */
 .pair { display: flex; }
 .row.half { flex: 1; min-width: 0; }
+.savedSlot { display: flex; align-items: center; flex: 1; min-width: 0; }
+.savedSlot .row { gap: 6px; padding-right: 0; }
+.savedEdit { flex: none; width: 48px; height: 48px; padding: 15px; border: 0; border-radius: 12px; background: none; color: var(--mana-text-secondary); opacity: .5; }
+.savedEdit:hover, .savedEdit:focus-visible { opacity: .9; }
 /* The Menu: groups, each row's value (On, RM120 of RM300) on the right. */
 .menuGroup { grid-column: 1 / -1; text-align: left; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mana-text-secondary); padding: 10px 6px 2px; }
 .menuRow { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 8px 6px; border: 0; border-radius: 12px; background: none; color: var(--mana-text); text-align: left; font-size: 16px; }
@@ -225,7 +229,21 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 
 .menuRow.lockedColour .vehicle { opacity: .4; }
 .menuRow.lockedColour .label, .menuRow.lockedColour .value { color: var(--mana-text-secondary); }
-.menuRow.lockedColour .value { max-width: 160px; }
+.menuRow.lockedColour .lockNeed { display: block; font-size: .8em; }
 .colourLock { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
 
 .routeSwatch { stroke-linecap: round; flex-shrink: 0; }
+
+/* The offer occupies its own lane; speed and Report move up together. */
+#routeOffer { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + var(--stack, 118px) + 24px); display: flex; align-items: center; gap: 8px; padding: 8px 12px; z-index: 2; }
+#routeOffer span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+#routeOffer button { flex: none; min-height: 48px; min-width: 44px; border: 0; }
+#routeOffer button:last-of-type { color: var(--mana-text-secondary); border-radius: 24px; }
+#routeOffer button:first-of-type { background: var(--mana-accent); color: #FFFFFF; padding: 0 16px; border-radius: 24px; }
+body.route-offer #speedView { bottom: calc(env(safe-area-inset-bottom) + var(--stack, 118px) + 100px); }
+body.route-offer #side { bottom: calc(env(safe-area-inset-bottom) + max(210px, var(--stack, 0px) + 100px)); }
+.drive-route-pill { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--mana-divider); background: var(--mana-surface); color: var(--mana-text-secondary); font-size: 14px; font-weight: 600; box-shadow: 0 2px 6px #0002; }
+.drive-route-pill.faster { color: var(--mana-positive); }
+:root.night { --mana-route-alt: #8E96A0; }
+
+.drive-route-pill:active { background: var(--mana-surface-variant); }
