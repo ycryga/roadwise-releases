@@ -3,6 +3,32 @@
 What changed in each Mana release (called Roadwise until 0.13). The APK for each one is on its
 [GitHub release](https://github.com/ycryga/roadwise-releases/releases).
 
+## 0.26.0 — 2026-11-18
+
+- **A new look**: Mana now has its own face. Navy night screens and map instead of grey, a warmer
+  typeface (Plus Jakarta Sans), the Mana logo in the search bar and your level as a ring that fills as
+  you earn points.
+- **A 3D car**: your vehicle is now a little 3D car that turns to match the road, glides smoothly
+  between GPS updates and still wears your car colour.
+- **Home and Work at your thumb**: once set, they wait on the map with how long they take right now.
+  Home and Work can now also be changed or removed (the pencil next to them).
+- **Search** greets you by time of day ("Good evening", "Selamat petang") and each kind of place has
+  its own colour.
+- **Picking a route**: a big trip time, routes side by side with a tick on the one you picked, and a
+  small traffic strip showing where each one slows down. Add stop, Parking and Save are small buttons.
+- **While driving**: a line shows how much of the trip is done, ending at the red dot. Traffic is
+  checked again every 5 minutes, so time left counts the slow stretches ahead.
+- **Other routes while driving**: other ways stay on the map in grey with their times, and Mana offers
+  a switch only when one is clearly faster.
+- **Thank-you for reports**: when a report earns points, a small "+N points" note appears.
+- **Locations from other apps** (WhatsApp, Google Maps, Waze): always open as a place card first; a
+  link with just a place name now searches for it; if you are driving, Mana asks whether to add it as
+  a stop or go there instead.
+- Directions now lower your music while they speak, and still speak (quietly) during a call.
+- Fixes: roundabout exits in the browser version, and road features (cameras, bumps, tolls) after a
+  reroute in the browser version.
+- In the browser version too (it also gains Parking near your destination).
+
 ## 0.25.0 — 2026-11-06
 
 - **More report types**: report a **roadblock** (under Police), a **blocked lane** (left, centre or right)
