@@ -2,6 +2,9 @@
 // reports, incidents, the traffic map) for phones that can't or won't install the APK.
 // Positions are [lng, lat] throughout, as MapLibre and GeoJSON have them.
 
+import { rad, distance, bearing, snap, along, angleBetween, cumulative, positionAlong } from "./geo.js";
+import { tracePieces, encodeTrace, traceFacts } from "./route-facts.js";
+
 const { SUPABASE_URL, SUPABASE_KEY } = window.ROADWISE;
 const TRAFFIC = `${SUPABASE_URL}/functions/v1/traffic`;
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -19,7 +22,8 @@ const REPORTS_REFRESH_MS = 2 * 60_000;
 const REPORT_MAX_AGE_MIN = 120, REPORT_FRESH_MIN = 20, REPORT_OLDEST_OPACITY = 0.35;
 const SAME_PLACE_METERS = 60;
 /** "Where to?" in the browser's language: Malay gets "Ke mana?", as the app does. */
-const SEARCH_HINT = /^ms\b/i.test(navigator.language) ? "Ke mana?" : "Where to?";
+const isMalay = () => /^ms\b/i.test(navigator.language);
+const SEARCH_HINT = isMalay() ? "Ke mana?" : "Where to?";
 const MAX_STOPS = 8;
 const STOP_REACHED_METERS = 60;
 const OSRM_TABLE = "https://router.project-osrm.org/table/v1/driving/";
@@ -119,43 +123,6 @@ function deviceId() {
   } catch { return crypto.randomUUID(); }
 }
 
-// --- Geometry ---
-
-const rad = (d) => (d * Math.PI) / 180;
-function distance(a, b) {
-  const dLat = rad(b[1] - a[1]), dLng = rad(b[0] - a[0]);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.sqrt(h));
-}
-function bearing(a, b) {
-  const y = Math.sin(rad(b[0] - a[0])) * Math.cos(rad(b[1]));
-  const x = Math.cos(rad(a[1])) * Math.sin(rad(b[1])) - Math.sin(rad(a[1])) * Math.cos(rad(b[1])) * Math.cos(rad(b[0] - a[0]));
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-/** The nearest point of [line] to [p]: its distance, the segment it's on and that segment's direction. */
-function snap(p, line) {
-  const kx = Math.cos(rad(p[1])) * 111320, ky = 110540;
-  let best = null;
-  for (let i = 0; i < line.length - 1; i++) {
-    const ax = (line[i][0] - p[0]) * kx, ay = (line[i][1] - p[1]) * ky;
-    const bx = (line[i + 1][0] - p[0]) * kx, by = (line[i + 1][1] - p[1]) * ky;
-    const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
-    const t = len ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len)) : 0;
-    const x = ax + t * dx, y = ay + t * dy, d = Math.hypot(x, y);
-    if (!best || d < best.meters) best = { meters: d, segment: i, point: [p[0] + x / kx, p[1] + y / ky] };
-  }
-  if (best) best.bearing = bearing(line[best.segment], line[best.segment + 1]);
-  return best;
-}
-/** The part of [line] between where [from] and then [to] land on it (the end is looked for after the start). */
-function along(line, from, to) {
-  const a = snap(from, line);
-  const b = a && snap(to, line.slice(a.segment));
-  if (!b) return [];
-  return [a.point, ...line.slice(a.segment + 1, a.segment + b.segment + 1), b.point];
-}
-const angleBetween = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
-
 // --- Formatting ---
 
 function formatDuration(seconds) {
@@ -195,7 +162,8 @@ const fc = (features) => ({ type: "FeatureCollection", features });
 const lineFeature = (coords, props = {}) => ({ type: "Feature", geometry: { type: "LineString", coordinates: coords }, properties: props });
 const pointFeature = (p, props = {}) => ({ type: "Feature", geometry: { type: "Point", coordinates: p }, properties: props });
 
-map.on("load", () => {
+let reportRefreshTimer;
+function installMapLayers() {
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim(); // Named colours in style.css.
   // 3D buildings hide the route line once the camera tilts for driving.
   for (const l of map.getStyle().layers) if (l.type === "fill-extrusion") map.setLayoutProperty(l.id, "visibility", "none");
@@ -207,7 +175,7 @@ map.on("load", () => {
   for (const s of ["alts", "route", "driven", "slow", "dest", "stops", "me", "search-results"]) map.addSource(s, { type: "geojson", data: empty });
   // Reports and incidents close together show as one numbered bubble until zoomed in to street level.
   for (const s of ["reports", "incidents"]) map.addSource(s, { type: "geojson", data: empty, cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 40 });
-  map.addLayer({ id: "alts-casing", type: "line", source: "alts", paint: { "line-color": night ? "#15181B" : "#6E757C", "line-width": night ? 8.5 : 8, "line-opacity": night ? .9 : .85 }, layout: { "line-cap": "round", "line-join": "round" } });
+  map.addLayer({ id: "alts-casing", type: "line", source: "alts", paint: { "line-color": night ? "#0F1626" : "#6E757C", "line-width": night ? 8.5 : 8, "line-opacity": night ? .9 : .85 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "alts", type: "line", source: "alts", paint: { "line-color": css("--mana-route-alt"), "line-width": 5.5, "line-opacity": night ? .88 : 1 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "driven", type: "line", source: "driven", paint: { "line-color": css("--mana-route-driven"), "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
   map.addLayer({ id: "route-casing", type: "line", source: "route", paint: { "line-color": ROUTE_COLOURS[routeColour()][night ? 4 : 2], "line-width": 13 }, layout: { "line-cap": "round", "line-join": "round" } });
@@ -219,14 +187,13 @@ map.on("load", () => {
     layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": css("--mana-via") } });
   map.addLayer({ id: "dest-ring", type: "circle", source: "dest", paint: { "circle-color": css("--mana-destination"), "circle-radius": 0, "circle-opacity": 0, "circle-pitch-alignment": "map" } });
-  map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
+  if (!map.hasImage("dest-pin")) map.addImage("dest-pin", destPinImage(), { pixelRatio: 2 });
   map.addLayer({ id: "dest", type: "symbol", source: "dest",
     layout: { "icon-image": "dest-pin", "icon-anchor": "bottom", "icon-allow-overlap": true, "icon-ignore-placement": true } });
   for (const [s, minzoom] of [["incidents", INCIDENTS_MIN_ZOOM], ["reports", 0]]) {
     // A small plain grey dot, no number, so it never looks like a numbered search result.
     map.addLayer({ id: `${s}-clusters`, type: "circle", source: s, minzoom, filter: ["has", "point_count"],
       paint: { "circle-color": css("--mana-cluster"), "circle-opacity": 0.75, "circle-radius": 7, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
-    map.on("click", `${s}-clusters`, (e) => map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom() + 2, CLUSTER_MAX_ZOOM + 1) }));
   }
   map.addLayer({ id: "incidents", type: "symbol", source: "incidents", minzoom: INCIDENTS_MIN_ZOOM, filter: ["!", ["has", "point_count"]],
     layout: { "icon-image": ["get", "icon"], "icon-size": 0.8, "icon-allow-overlap": true, "icon-ignore-placement": true } });
@@ -239,11 +206,14 @@ map.on("load", () => {
   map.addSource("turn", { type: "geojson", data: empty });
   map.addLayer({ id: "turn-line", type: "line", source: "turn", filter: ["==", ["geometry-type"], "LineString"],
     paint: { "line-color": "#fff", "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addImage("turn-head", turnHeadImage(), { pixelRatio: 2 });
+  if (!map.hasImage("turn-head")) map.addImage("turn-head", turnHeadImage(), { pixelRatio: 2 });
   map.addLayer({ id: "turn-head", type: "symbol", source: "turn", filter: ["==", ["geometry-type"], "Point"],
     layout: { "icon-image": "turn-head", "icon-rotate": ["get", "bearing"], "icon-rotation-alignment": "map", "icon-pitch-alignment": "map",
       "icon-allow-overlap": true, "icon-ignore-placement": true } });
-  map.addImage("mana-car", carImage(), { pixelRatio: 2 });
+  if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
+  else map.addImage("mana-car", carImage(), { pixelRatio: 2 });
+  map.addLayer({ id: "mana-pulse", type: "circle", source: "me", paint: { "circle-color": css("--mana-primary"), "circle-radius": 16, "circle-opacity": .12 } });
+  startPuckPulse();
   map.addLayer({ id: "me", type: "symbol", source: "me", layout: {
     "icon-image": "mana-car", "icon-size": 0.9, "icon-rotate": ["get", "heading"],
     "icon-rotation-alignment": "map", "icon-allow-overlap": true, "icon-ignore-placement": true,
@@ -252,12 +222,24 @@ map.on("load", () => {
   map.addLayer({ id: "search-result-numbers", type: "symbol", source: "search-results",
     layout: { "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 14, "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#fff" } });
+  loadCarSprites();
+  if (car) { cancelAnimationFrame(carFrame); drawCar(); }
   setSearchCandidates(shownResults);
   showTraffic(state.traffic);
   refreshReports();
-  setInterval(refreshReports, REPORTS_REFRESH_MS);
+  clearInterval(reportRefreshTimer);
+  reportRefreshTimer = setInterval(refreshReports, REPORTS_REFRESH_MS);
   refreshIncidents();
+}
+map.on("style.load", installMapLayers);
+// A diff-based setStyle can remove custom layers without emitting style.load.
+map.on("styledata", () => {
+  if (!map.getSource("me")) requestAnimationFrame(() => {
+    if (map.isStyleLoaded() && !map.getSource("me")) installMapLayers();
+  });
 });
+for (const s of ["reports", "incidents"]) map.on("click", `${s}-clusters`, (e) => map.easeTo({ center: e.lngLat, zoom: Math.max(map.getZoom() + 2, CLUSTER_MAX_ZOOM + 1) }));
+map.on("move", () => updateCarFrame());
 map.on("moveend", () => refreshIncidents());
 map.on("dragstart", () => { state.following = false; });
 map.on("click", "alts", (e) => {
@@ -410,6 +392,62 @@ function repaint(kind, to) {
   return (c, onPaint) => map.get(c) ?? (onPaint && c === "#FFFFFF" && l > 0.8 ? "#64748B" : c);
 }
 
+/** Atlas headings are relative to the viewport; the final frame is north-up. */
+function carSpriteFrame(heading, cameraBearing, tilt) {
+  return tilt < 25 ? 36 : Math.round((((heading - cameraBearing) % 360 + 360) % 360) / 10) % 36;
+}
+let carSpriteLoad = 0;
+async function loadCarSprites() {
+  if (!map.getLayer("me")) return;
+  const run = ++carSpriteLoad, kind = vehicle(), colour = CAR_COLOURS[carColour()]?.[1];
+  try {
+    const image = async (suffix) => {
+      const img = new Image();
+      img.src = `cars3d/${kind}${suffix}.png`;
+      await img.decode();
+      return img;
+    };
+    const [base, paint] = await Promise.all([image(""), colour && kind !== "arrow" ? image("_paint") : null]);
+    if (run !== carSpriteLoad || !map.getLayer("me")) return;
+    const canvas = Object.assign(document.createElement("canvas"), { width: base.width, height: base.height });
+    const g = canvas.getContext("2d", { willReadFrequently: true });
+    g.drawImage(base, 0, 0);
+    const pixels = g.getImageData(0, 0, base.width, base.height);
+    if (paint) {
+      g.clearRect(0, 0, base.width, base.height);
+      g.drawImage(paint, 0, 0);
+      const mask = g.getImageData(0, 0, base.width, base.height).data;
+      const rgb = [1, 3, 5].map(i => parseInt(colour.slice(i, i + 2), 16));
+      let maxShade = 1;
+      for (let i = 0; i < mask.length; i += 4) if (mask[i + 3]) maxShade = Math.max(maxShade, mask[i]);
+      for (let i = 0; i < mask.length; i += 4) {
+        const alpha = mask[i + 3] / 255, shade = mask[i] / maxShade;
+        for (let c = 0; c < 3; c++) pixels.data[i + c] = rgb[c] * shade * alpha + pixels.data[i + c] * (1 - alpha);
+      }
+    }
+    g.putImageData(pixels, 0, 0);
+    for (let i = 0; i <= 36; i++) {
+      const name = i === 36 ? "car3d_top" : `car3d_${i}`;
+      const frame = g.getImageData(i % 6 * 128, Math.floor(i / 6) * 128, 128, 128);
+      if (map.hasImage(name)) map.updateImage(name, frame);
+      else map.addImage(name, frame, { pixelRatio: 2 });
+    }
+    updateCarFrame();
+  } catch (e) {
+    // Keep the existing 2D fallback if an atlas cannot be decoded.
+    console.error("Could not load car atlas", e);
+  }
+}
+function updateCarFrame(heading = car ? carAt(performance.now()).heading : state.heading ?? 0) {
+  if (!map.getLayer("me") || !map.hasImage("car3d_top")) return;
+  const frame = carSpriteFrame(heading, map.getBearing(), map.getPitch());
+  map.setLayoutProperty("me", "icon-image", frame === 36 ? "car3d_top" : `car3d_${frame}`);
+  map.setLayoutProperty("me", "icon-size", 1.6);
+  map.setLayoutProperty("me", "icon-rotation-alignment", frame === 36 ? "map" : "viewport");
+  map.setLayoutProperty("me", "icon-pitch-alignment", "viewport");
+  map.setLayoutProperty("me", "icon-rotate", frame === 36 ? heading : 0);
+}
+
 /** The chosen vehicle seen from above, facing north before GPS heading rotation (as Android's ic_nav_car*). */
 function carImage(kind = vehicle()) {
   const g = carCanvas(kind).getContext("2d");
@@ -464,7 +502,7 @@ function chooseCarColour() {
   showSheet("Car colour", ...Object.entries(CAR_COLOURS).map(([key, [label, , unlockLevel]]) =>
     colourRow(label, unlockLevel, key === now, '<img class="vehicle" alt="">', () => {
       try { localStorage.setItem("mana.carColour", key); } catch { return toast("Couldn't save it in your browser"); }
-      if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage());
+      if (map.hasImage("mana-car")) { map.updateImage("mana-car", carImage()); loadCarSprites(); }
       chooseVehicle();
     }, b => { b.querySelector("img").src = carCanvas(vehicle(), key).toDataURL(); })
   ), Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Route colour" }), ...Object.entries(ROUTE_COLOURS).map(([key, [label, dayLine, dayCasing, nightLine, nightCasing, unlockLevel]]) =>
@@ -488,7 +526,7 @@ function chooseVehicle() {
     b.querySelector(".value").textContent = kind === now ? "In use" : "";
     b.onclick = () => {
       try { localStorage.setItem("mana.vehicle", kind); } catch { return toast("Couldn't save it in your browser"); }
-      if (map.hasImage("mana-car")) map.updateImage("mana-car", carImage(kind));
+      if (map.hasImage("mana-car")) { map.updateImage("mana-car", carImage(kind)); loadCarSprites(); }
       showMenu();
     };
     return b;
@@ -551,8 +589,8 @@ function badge(glyph, color) {
 
 // --- Night colours (as the Android app's MapTheme and RoadColors) ---
 
-const NIGHT = { background: "#1E2227", land: "#252A30", green: "#1F2B25", water: "#15233A", building: "#2E333A",
-  label: "#C9CED6", dim: "#4A5058", major: "#50565E", minor: "#3A3F46", casing: "#15181B" };
+const NIGHT = { background: "#0F1626", land: "#131C30", green: "#11261F", water: "#0D2345", building: "#131C30",
+  label: "#EEF2FA", dim: "#2B3758", major: "#33466F", minor: "#24324F", casing: "#0F1626" };
 const UNROADS = ["rail", "transit", "path", "pedestrian", "aeroway", "ferry", "cable", "pier"];
 const MAJOR = ["motorway", "trunk", "primary", "major"];
 /** The style's own day value of each paint property night changed, to put back in the morning. */
@@ -581,11 +619,11 @@ function updateTheme() {
 function applyNight(on) {
   night = on;
   document.documentElement.classList.toggle("night", on);
-  document.querySelector('meta[name="theme-color"]').content = on ? "#1E2227" : "#002B7F";
+  document.querySelector('meta[name="theme-color"]').content = on ? "#0F1626" : "#002B7F";
   recolorRoute();
   if (map.getLayer("alts")) map.setPaintProperty("alts", "line-color", on ? "#8E96A0" : "#9AA0A6");
   if (map.getLayer("alts-casing")) {
-    map.setPaintProperty("alts-casing", "line-color", on ? "#15181B" : "#6E757C");
+    map.setPaintProperty("alts-casing", "line-color", on ? "#0F1626" : "#6E757C");
     map.setPaintProperty("alts-casing", "line-width", on ? 8.5 : 8);
     map.setPaintProperty("alts-casing", "line-opacity", on ? .9 : .85);
     map.setPaintProperty("alts", "line-opacity", on ? .88 : 1);
@@ -643,6 +681,7 @@ function startLocation() {
 }
 
 function onLocation() {
+  refreshQuickPlaces();
   showArrivalPoints();
   const nav = state.nav;
   let shown = state.here;
@@ -665,7 +704,7 @@ function onLocation() {
     const zoom = !nav ? map.getZoom() : Math.abs(want - map.getZoom()) >= SPEED_ZOOM_STEP ? want : map.getZoom();
     map.easeTo({ center: shown, bearing: nav && state.heading != null ? state.heading : map.getBearing(), pitch: nav ? 50 : 0,
       zoom, padding: { top: nav ? innerHeight * (2 * CAR_Y - 1) : 0, bottom: 0, left: 0, right: 0 },
-      duration: CAR_GLIDE_MS, easing: (t) => t }); // linear, as the car's glide, so the car stays put on screen
+      duration: car.duration, easing: (t) => t }); // linear, as the car's glide, so the car stays put on screen
   }
 }
 
@@ -673,25 +712,35 @@ function onLocation() {
  * The car glides from where it is to each new fix, in step with the camera, instead of jumping once a
  * second (phones give about one fix a second). Big jumps and reduced motion move it at once.
  */
-const CAR_GLIDE_MS = 1000;
-let car = null, carFrame = 0;
+let car = null, carFrame = 0, carFixAt = null;
 function carAt(now) {
-  const t = Math.min(1, (now - car.start) / CAR_GLIDE_MS);
+  const t = Math.min(1, (now - car.start) / (car.duration || 1));
   const turn = ((car.toHeading - car.fromHeading + 540) % 360) - 180; // the short way round
   return { at: car.from.map((v, i) => v + (car.to[i] - v) * t), heading: (car.fromHeading + turn * t + 360) % 360 };
 }
 function moveCar(at, heading) {
   const now = performance.now();
   const from = car && !reducedMotion() ? carAt(now) : null;
-  const glide = from && distance(from.at, at) < 200;
-  car = { from: glide ? from.at : at, to: at, fromHeading: glide ? from.heading : heading, toHeading: heading, start: now };
-  if (!carFrame) drawCar();
+  const glide = from && carFixAt != null && !document.hidden && distance(from.at, at) <= 200;
+  const duration = glide ? Math.max(200, Math.min(1500, now - carFixAt)) : 0;
+  carFixAt = document.hidden ? null : now;
+  car = { from: glide ? from.at : at, to: at, fromHeading: glide ? from.heading : heading, toHeading: heading, start: now, duration };
+  cancelAnimationFrame(carFrame);
+  drawCar();
 }
 function drawCar() {
   const now = performance.now(), { at, heading } = carAt(now);
   map.getSource("me")?.setData(fc([pointFeature(at, { heading })]));
-  carFrame = now - car.start < CAR_GLIDE_MS ? requestAnimationFrame(drawCar) : 0;
+  updateCarFrame(heading);
+  carFrame = !document.hidden && now - car.start < car.duration ? requestAnimationFrame(drawCar) : 0;
 }
+
+document.addEventListener("visibilitychange", () => {
+  carFixAt = null;
+  cancelAnimationFrame(carFrame);
+  carFrame = 0;
+  if (car) { car.from = car.to; car.fromHeading = car.toHeading; car.duration = 0; drawCar(); }
+});
 
 $("locate").onclick = () => {
   state.following = true;
@@ -701,8 +750,11 @@ $("locate").onclick = () => {
 
 // --- Search ---
 
+function updateSearchMark() { $("submitSearch").classList.toggle("manaMark", !$("search").value.trim()); }
+updateSearchMark();
 let searchTimer, searchRun = 0;
 $("search").addEventListener("input", () => {
+  updateSearchMark();
   const q = $("search").value.trim();
   if (searchReturn && q !== searchReturn.query) {
     searchReturn = null;
@@ -723,10 +775,12 @@ $("submitSearch").onclick = submitSearch;
 function submitSearch() {
   clearTimeout(searchTimer);
   const q = $("search").value.trim();
-  if (q) { $("search").blur(); search(q, true); }
+  if (q) { $("search").blur(); search(q, true); } else $("search").focus();
 }
 /** The search bar's right-hand slot: Clear while searching or showing a place, the Menu otherwise. */
 function showClear(on) {
+  updateSearchMark();
+  queueMicrotask(refreshQuickPlaces);
   $("clear").hidden = !on;
   $("menuButton").hidden = on;
   $("levelButton").hidden = on || !SUPABASE_URL;
@@ -811,9 +865,9 @@ async function photon(q, near) {
 }
 
 /** Places of one of the STOP_KINDS around [near], by their map tags rather than their names (as the app's Places.near). */
-async function photonNearby([, , , tags, nameHint], near) {
+async function photonNearby([, , , tags, nameHint], near, radius = NEARBY_KM) {
   const filter = tags.map((t) => `&osm_tag=${encodeURIComponent(t)}`).join("");
-  const places = await photonPlaces(await fetch(`${PHOTON_REVERSE}?lat=${near[1]}&lon=${near[0]}&radius=${NEARBY_KM}&limit=10${filter}`));
+  const places = await photonPlaces(await fetch(`${PHOTON_REVERSE}?lat=${near[1]}&lon=${near[0]}&radius=${radius}&limit=10${filter}`));
   return places.filter((p) => !nameHint || nameHint.test(p.name));
 }
 
@@ -921,6 +975,19 @@ function restoreSearchResults() {
 window.addEventListener("popstate", restoreSearchResults);
 $("placeGo").onclick = () => { hideCard($("placeCard")); planRoute(true); };
 $("routeAddStop").onclick = () => startPicking("stop");
+$("routeParking").onclick = async () => {
+  const near = state.destination?.at;
+  if (!near) return;
+  startPicking("parking", false);
+  $("search").placeholder = "Parking near your destination";
+  const run = ++searchRun;
+  try {
+    const places = await withProgress(() => photonNearby(["parking", "Parking", "parking", ["amenity:parking"]], near, 1));
+    if (run === searchRun && state.picking === "parking") showResults(places, near);
+  } catch {
+    if (run === searchRun && state.picking === "parking") toast("Could not find parking. Try again.");
+  }
+};
 /** Home or Work already at the destination's spot, if either is. */
 const savedAs = (place) => place && ["home", "work"].find((slot) => state[slot] && distance(state[slot].at, place.at) < 30);
 /** Save reads "Saved" once the place is Home or Work. */
@@ -966,11 +1033,13 @@ const stackObserver = new ResizeObserver(() => {
 });
 for (const id of ["panel", "placeCard"]) stackObserver.observe($(id));
 function showCard(el) {
+  queueMicrotask(refreshQuickPlaces);
   clearTimeout(el.hideTimer);
   if (el.hidden) { el.hidden = false; void el.offsetHeight; } // Start from the hidden pose.
   el.classList.add("in");
 }
 function hideCard(el) {
+  queueMicrotask(refreshQuickPlaces);
   if (el.hidden) return;
   el.classList.remove("in");
   el.hideTimer = setTimeout(() => (el.hidden = true), reducedMotion() ? 0 : 160);
@@ -985,6 +1054,7 @@ async function planRoute(fit) {
   if (!found.length) return toast("No driving route found");
   state.routes = found;
   selectRoute(0);
+  loadChoiceFacts(found);
   renderTrip();
   hideCard($("placeCard"));
   showCard($("panel"));
@@ -1005,6 +1075,7 @@ async function routeTraffic(points, signal) {
 
 function applyRouteTraffic(r, t) {
   trafficPaused = false;
+  r.liveTraffic = true;
   r.seconds = t.seconds;
   r.delay = t.delaySeconds || 0;
   r.limits = (t.limits || []).filter((s) => s.points.length >= 2).map((s) => ({
@@ -1017,15 +1088,15 @@ function applyRouteTraffic(r, t) {
 }
 
 /** OSRM choices, then live time; driving requests stay serial and stop on failure. */
-async function fetchRoutes(points, alternatives, drive = null) {
+async function fetchRoutes(points, alternatives, drive = null, quick = null) {
   const alt = alternatives && points.length === 2 ? "&alternatives=3" : "";
   const url = `${OSRM}${points.map((p) => p.join(",")).join(";")}?overview=full&geometries=geojson&steps=true${alt}`;
-  const json = await fetch(url, drive ? { signal: drive.trafficController.signal } : undefined).then((r) => r.json()).catch(() => null);
+  const json = await fetch(url, drive ? { signal: drive.trafficController.signal } : quick ? { signal: quick.signal } : undefined).then((r) => r.json()).catch(() => null);
   if (json?.code !== "Ok") return [];
   const routes = (drive ? json.routes.slice(0, 1) : json.routes).map(parseRoute);
   const live = async (r) => {
-    if (drive?.trafficStopped) return;
-    const t = await (drive && !driveTrafficAllowed(drive) ? Promise.resolve(null) : routeTraffic(r.points, drive?.trafficController?.signal)).catch((e) => {
+    if (drive?.trafficStopped || quick && (!quickIdle() || trafficPaused || !SUPABASE_URL)) return;
+    const t = await (drive && !driveTrafficAllowed(drive) ? Promise.resolve(null) : routeTraffic(r.points, drive?.trafficController?.signal ?? quick?.signal)).catch((e) => {
       trafficPaused = e.message === "traffic 429";
       if (drive) drive.trafficStopped = true;
       return null;
@@ -1053,15 +1124,35 @@ function selectRoute(i) {
   if (state.nav) return switchDriveRoute(state.nav.alternatives[Number(i)]);
   state.selected = i;
   drawRoutes();
+  const selected = state.routes[i];
+  const malay = isMalay();
+  $("routeTime").textContent = formatDuration(selected.seconds);
+  $("routeArrival").textContent = `${malay ? "tiba" : "arrive"} ${clock(selected.seconds)}`;
+  function tollLabel(r) {
+    if (r.hasTolls == null) return malay ? "Tol belum diketahui" : "Tolls unknown";
+    if (r.hasTolls) return malay ? "Bertol" : "Tolls";
+    return malay ? "Tiada tol" : "No tolls";
+  }
+  $("routeMeta").textContent = joinWhole([shortDistance(selected.meters), quickStatus(selected, trafficPaused, malay), tollLabel(selected)]);
+  const fastest = Math.min(...state.routes.map(r => r.seconds));
+  const fewest = state.routes.every(r => Number.isFinite(r.lights)) ? Math.min(...state.routes.map(r => r.lights)) : null;
+  function routeTag(r) {
+    if (r.seconds === fastest) return malay ? "Terpantas" : "Fastest";
+    if (fewest != null && r.lights === fewest && state.routes.some(x => x.lights > fewest))
+      return malay ? "Lampu paling sedikit" : "Fewest lights";
+    return malay ? "Alternatif" : "Alternative";
+  }
   const list = $("routes");
+  list.classList.toggle("two", state.routes.length === 2);
   list.replaceChildren(...state.routes.map((r, k) => {
     const b = document.createElement("button");
     b.className = `route${k === i ? " on" : ""}`;
-    const traffic = r.delay >= 60 ? `traffic +${formatDuration(r.delay)}` : k === i && trafficPaused ? TRAFFIC_PAUSED : "";
-    b.innerHTML = `<span><div class="time"></div><div class="sub"></div></span><span class="sub"></span>`;
+    b.setAttribute("aria-pressed", String(k === i));
+    b.innerHTML = `<span><div class="time"></div><div class="sub"></div></span><span class="sub"></span><span class="routeCheck" aria-hidden="true">✓</span>`;
     b.querySelector(".time").textContent = formatDuration(r.seconds);
-    b.querySelectorAll(".sub")[0].textContent = joinWhole([shortDistance(r.meters), traffic, r.via && `via ${r.via}`]);
-    b.querySelectorAll(".sub")[1].textContent = clock(r.seconds);
+    b.querySelectorAll(".sub")[0].textContent = routeTag(r);
+    b.querySelectorAll(".sub")[1].textContent = joinWhole([shortDistance(r.meters), r.lights == null ? (malay ? "Lampu —" : "Lights —") : `${r.lights} ${malay ? "lampu" : "lights"}`]);
+    if (r.slow?.length) b.append(trafficStrip(r));
     b.onclick = () => selectRoute(k);
     return b;
   }));
@@ -1087,6 +1178,7 @@ function drawRoutes() {
 }
 
 function clearRoute() {
+  choiceFactsController?.abort();
   state.destination = null;
   state.stops = [];
   state.origin = null;
@@ -1105,6 +1197,7 @@ function choose(place) {
   if (!kind) return goTo(place);
   stopPicking();
   if (kind === "origin") state.origin = place;
+  else if (kind === "parking") state.destination = place;
   else if (state.stops.length >= MAX_STOPS) return toast(`Up to ${MAX_STOPS} stops`);
   else state.stops.push(place);
   if (state.nav) return reroute(); // Driving: carry on, through the new stop.
@@ -1294,7 +1387,7 @@ function driveAlternative(r, main) {
   return { route: r, cumulative: cumulative(r.points), shape: otherRouteShape(main.points, r.points) };
 }
 function alternativeSeconds(a, here) {
-  const at = snap(here, a.route.points), from = a.cumulative[at.segment] + distance(a.route.points[at.segment], at.point);
+  const at = snap(here, a.route.points), from = positionAlong(a.route.points, a.cumulative, at);
   if (!a.trafficTime) setTrafficTime(a, a.route, 0);
   const t = a.trafficTime;
   return trafficTimeLeft(t.total, t.free, from - t.from, t.stretches);
@@ -1310,10 +1403,10 @@ function switchDriveRoute(candidate) {
   const remaining = nav.alternatives.filter(a => a !== candidate).concat(old);
   Object.assign(nav, { route: candidate.route, cumulative: candidate.cumulative, trafficTime: candidate.trafficTime, trafficSlow: candidate.trafficSlow,
     progress: snap(state.here, candidate.route.points), off: 0, far: false, near: false });
-  const pos = nav.cumulative[nav.progress.segment] + distance(nav.route.points[nav.progress.segment], nav.progress.point);
+  const pos = positionAlong(nav.route.points, nav.cumulative, nav.progress);
   nav.stepIndex = nav.route.steps.findIndex((step,i) => {
     const hit = snap(step.at,nav.route.points);
-    return i > 0 && nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment],hit.point) > pos + 10;
+    return i > 0 && positionAlong(nav.route.points, nav.cumulative, hit) > pos + 10;
   });
   if (nav.stepIndex < 0) nav.stepIndex = nav.route.steps.length - 1;
   // Suppress speech caused solely by selecting another route.
@@ -1323,14 +1416,14 @@ function switchDriveRoute(candidate) {
   $("bannerText").textContent = bannerFor(step); $("bannerDistance").textContent = shortDistance(dist);
   $("arrow").textContent = symbolFor(step); $("then").hidden = true;
   drawTurnArrow(step);
-  $("navEta").textContent = clock(seconds);
+  $("navEta").textContent = formatDuration(seconds);
   $("navLeft").textContent = joinWhole([formatDuration(seconds), shortDistance(nav.cumulative.at(-1)-pos)]);
   nav.alternatives = remaining.map(a => ({ ...a, shape: otherRouteShape(nav.route.points,a.route.points,pos) })).filter(a => a.shape).slice(0,2);
   hideRouteOffer(); pruneDriveAlternatives(nav); loadFeatures(nav.route.points); drawRoutes();
 }
 function pruneDriveAlternatives(nav) {
   if (!nav.progress || !nav.alternatives) return;
-  const pos = nav.cumulative[nav.progress.segment] + distance(nav.route.points[nav.progress.segment],nav.progress.point);
+  const pos = positionAlong(nav.route.points, nav.cumulative, nav.progress);
   const previous = nav.alternatives.length;
   nav.alternatives = nav.alternatives.filter(a => otherRouteReachable(a.shape,pos));
   if (previous !== nav.alternatives.length) hideRouteOffer();
@@ -1343,7 +1436,7 @@ function drawDriveAlternatives() {
   if (!nav) return;
   const here = nav.progress?.point || nav.route.points[0];
   const hit = snap(here, nav.route.points), t = nav.trafficTime;
-  const current = trafficTimeLeft(t.total,t.free,nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment],hit.point) - t.from,t.stretches);
+  const current = trafficTimeLeft(t.total,t.free,positionAlong(nav.route.points, nav.cumulative, hit) - t.from,t.stretches);
   for (const a of nav.alternatives || []) {
     const delta = Math.round((alternativeSeconds(a,here) - current) / 60);
     const b = drivePills.get(a)?.getElement() || document.createElement('button');
@@ -1356,6 +1449,7 @@ function drawDriveAlternatives() {
 }
 
 function startNavigation() {
+  choiceFactsController?.abort();
   state.reportsWarned = new Set();
   if (state.origin) return; // Planning from elsewhere: nothing to navigate from here.
   const r = state.routes[state.selected];
@@ -1372,6 +1466,7 @@ function startNavigation() {
   $("searchBox").hidden = true;
   $("banner").hidden = false;
   $("routes").hidden = true;
+  $("routeHero").hidden = true;
   $("routeActions").hidden = true;
   $("navInfo").hidden = false;
   $("speedView").hidden = false;
@@ -1398,6 +1493,7 @@ function stopNavigation() {
   $("searchBox").hidden = false;
   $("banner").hidden = true;
   $("routes").hidden = false;
+  $("routeHero").hidden = false;
   $("routeActions").hidden = false;
   $("navInfo").hidden = true;
   $("speedView").hidden = true;
@@ -1421,7 +1517,7 @@ function trafficTimeLeft(total, freeSeconds, at, stretches) {
 
 function setTrafficTime(nav, r, from) {
   nav.trafficSlow = r.slow;
-  const position = (hit) => hit ? nav.cumulative[hit.segment] + distance(r.points[hit.segment], hit.point) : from;
+  const position = (hit) => hit ? positionAlong(r.points, nav.cumulative, hit) : from;
   nav.trafficTime = { from, total: nav.cumulative.at(-1) - from, free: Math.max(0, r.seconds - r.delay),
     stretches: r.slow.map((s) => {
       const a = snap(s.points[0], r.points);
@@ -1437,7 +1533,7 @@ async function refreshDriveTraffic(nav) {
   let settled;
   nav.trafficDone = new Promise((resolve) => { settled = resolve; });
   const r = nav.route, at = nav.progress;
-  const from = nav.cumulative[at.segment] + distance(r.points[at.segment], at.point);
+  const from = positionAlong(r.points, nav.cumulative, at);
   try {
     if (!driveTrafficAllowed(nav)) return;
     const t = await routeTraffic([at.point, ...r.points.slice(at.segment + 1)], nav.trafficController.signal);
@@ -1453,7 +1549,7 @@ async function refreshDriveTraffic(nav) {
       const response = await routeTraffic([hit.point, ...a.route.points.slice(hit.segment + 1)], nav.trafficController.signal);
       if (state.nav !== nav || nav.route !== r || !nav.alternatives.includes(a)) return;
       const fresh = { ...a.route }; applyRouteTraffic(fresh,response);
-      setTrafficTime(a,fresh,a.cumulative[hit.segment] + distance(a.route.points[hit.segment],hit.point));
+      setTrafficTime(a,fresh,positionAlong(a.route.points, a.cumulative, hit));
       const saved = remainder.seconds - fresh.seconds;
       if (routeOfferEligible(remainder.seconds,fresh.seconds,nav.offers.get(a.route)) && saved > (offer?.saved || 0)) offer = {a,saved};
     }
@@ -1466,12 +1562,6 @@ async function refreshDriveTraffic(nav) {
     }
   }
   finally { nav.trafficBusy = false; settled(); }
-}
-
-function cumulative(points) {
-  const c = [0];
-  for (let i = 1; i < points.length; i++) c.push(c[i - 1] + distance(points[i - 1], points[i]));
-  return c;
 }
 
 /** Which maneuver is next, what to say, and whether the driver has left the route (the Android Navigator). */
@@ -1534,8 +1624,9 @@ function showNav(u) {
   $("bannerText").textContent = bannerFor(u.step);
   $("then").hidden = !u.then;
   if (u.then) $("then").textContent = `Then ${symbolFor(u.then)}  ${shortDistance(u.gap)}`;
-  $("navEta").textContent = clock(u.secondsLeft);
-  $("navLeft").textContent = joinWhole([formatDuration(u.secondsLeft), shortDistance(u.left)]);
+  $("navEta").textContent = formatDuration(u.secondsLeft);
+  $("navLeft").textContent = joinWhole([shortDistance(u.left), `${isMalay() ? "tiba" : "arrive"} ${clock(u.secondsLeft)}`]);
+  showTripProgress(nav, u.left);
   if (u.speak) say(u.speak);
   if (u.arrived) {
     stopNavigation();
@@ -1556,7 +1647,7 @@ function limitSignAt(at) {
   if (!nav) return null;
   const position = (p) => {
     const hit = snap(p, nav.route.points);
-    return hit && hit.meters <= FEATURE_ON_ROUTE_METERS ? nav.cumulative[hit.segment] + distance(nav.route.points[hit.segment], hit.point) : null;
+    return hit && hit.meters <= FEATURE_ON_ROUTE_METERS ? positionAlong(nav.route.points, nav.cumulative, hit) : null;
   };
   const here = position(at);
   if (here == null) return null;
@@ -1675,6 +1766,16 @@ function trafficCall(query, body, signal) {
     body: body ? JSON.stringify(body) : undefined,
   }).then((r) => { if (!r.ok) throw new Error(`traffic ${r.status}`); return r.json(); });
 }
+
+$("tiltButton").onclick = () => {
+  const threeD = map.getPitch() <= 10;
+  map.easeTo({ pitch: threeD ? 50 : 0 });
+};
+map.on("pitchend", () => {
+  const threeD = map.getPitch() > 10;
+  $("tiltButton").textContent = threeD ? "2D" : "3D";
+  $("tiltButton").setAttribute("aria-pressed", String(threeD));
+});
 
 $("trafficButton").onclick = () => {
   state.traffic = !state.traffic;
@@ -1858,7 +1959,7 @@ function askFeature(f) {
   const question = f.kind.key === "speed_limit" ? `Speed limit ${value} here?` : f.kind.ask;
   const answer = (yes) => async () => {
     hideCard($("sheet"));
-    try { await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, value, device_id: deviceId() }); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
+    try { const before = cachedLevel()?.points; await supabase("POST", "road_feature_votes", { feature_id: f.id, yes, value, device_id: deviceId() }); showEarnedPoints(before); toast("Thanks!"); } catch { /* A missed vote isn't worth bothering the driver. */ }
   };
   showTiles(question, [{ glyph: f.kind.glyph, label: "Yes", color: f.kind.color, pick: answer(true) },
     { sprite: "close", label: "No", color: NEUTRAL_TILE, pick: answer(false) }]);
@@ -1929,6 +2030,7 @@ function missingReportHeading(message) {
   return message.includes("heading") && (message.includes("PGRST204") || message.includes("42703"));
 }
 async function sendReport(type, sub, otherSide = false) {
+  const pointsBefore = cachedLevel()?.points;
   hideCard($("sheet"));
   const [lng, lat] = state.here;
   const heading = reportHeading(state.heading, otherSide);
@@ -1940,6 +2042,7 @@ async function sendReport(type, sub, otherSide = false) {
       delete row.heading;
       await addMine("reports", row);
     }
+    showEarnedPoints(pointsBefore);
     toast(`Reported: ${sub?.title ?? type.label}`);
     refreshReports();
   } catch (e) {
@@ -1962,10 +2065,16 @@ supabase("GET", "donations?select=*").then((rows) => {
  * Home and Work side by side, then kinds of place nearby: what the empty search box offers
  * (settings and the rest are in the Menu).
  */
+function searchGreeting(hour, malay) {
+  if (hour >= 5 && hour < 12) return malay ? "Selamat pagi" : "Good morning";
+  // Malay splits the afternoon at 3 pm (petang); English keeps "afternoon" until 6 pm.
+  if (malay) return hour >= 12 && hour < 15 ? "Selamat tengah hari" : hour >= 15 && hour < 19 ? "Selamat petang" : "Selamat malam";
+  return hour >= 12 && hour < 18 ? "Good afternoon" : "Good evening";
+}
 function showSaved() {
   const tile = (sprite, label, detail, onclick) => {
     const b = document.createElement("button");
-    b.className = "row half";
+    b.className = `row half kind-${sprite}`;
     b.innerHTML = `<span class="pin">${icon(sprite)}</span><span class="what"><div class="name"></div><div class="detail"></div></span>`;
     b.querySelector(".name").textContent = label;
     b.querySelector(".detail").textContent = detail;
@@ -1998,8 +2107,18 @@ function showSaved() {
   // One tap searches around here, no typing (as the app's Nearby).
   const kinds = STOP_KINDS.map(([word, label, sprite]) => tile(sprite, label, "", () => { $("search").value = word; search(word, true); }));
   const pairs = [];
-  for (let i = 0; i < kinds.length; i += 2) pairs.push(pair(...kinds.slice(i, i + 2)));
-  $("results").replaceChildren(pair(slot("home", "Home"), slot("work", "Work")),
+  for (let i = 0; i < kinds.length; i += 3) {
+    const row = pair(...kinds.slice(i, i + 3));
+    row.className = "pair nearbyKinds";
+    pairs.push(row);
+  }
+  const greeting = [];
+  if (!$("search").value && !state.picking && !state.savingSlot) {
+    const malay = isMalay();
+    greeting.push(Object.assign(document.createElement("div"), { className: "searchGreeting", role: "heading", ariaLevel: "2", textContent: searchGreeting(new Date().getHours(), malay) }),
+      Object.assign(document.createElement("div"), { className: "greetingSub", textContent: malay ? "Kita hendak ke mana?" : "Where are we going?" }));
+  }
+  $("results").replaceChildren(...greeting, pair(slot("home", "Home"), slot("work", "Work")),
     Object.assign(document.createElement("div"), { className: "menuGroup", textContent: "Nearby" }), ...pairs);
 }
 
@@ -2063,7 +2182,9 @@ const NO_LEVEL = { points: 0, level: 1, title: "Novice", next_level_at: 100 };
 /** The badge in the search bar, beside the Menu; tapping it opens Your level. */
 function showLevelBadge(l) {
   const b = $("levelButton");
-  b.innerHTML = levelBadge(l.level);
+  const base = LEVELS[l.level - 1][0];
+  const progress = l.next_level_at ? Math.max(0, Math.min(1, (l.points - base) / (l.next_level_at - base))) : 1;
+  b.innerHTML = `<svg class="levelRing" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="none" stroke="var(--mana-divider)" stroke-width="4"/><circle cx="20" cy="20" r="17" fill="none" stroke="var(--mana-primary)" stroke-width="4" pathLength="100" stroke-dasharray="${progress * 100} 100"/><text x="20" y="25" text-anchor="middle">${l.level}</text></svg>`;
   b.title = b.ariaLabel = `Level ${l.level}, ${l.title}, ${l.points} points. Opens Your level`;
 }
 function refreshLevel() { fetchLevel().then(showLevelBadge).catch(() => {}); }
@@ -2348,5 +2469,157 @@ function checkReportWarnings(here) {
     state.reportsWarned.add(r.id);
     say(r.warning, false);
     return;
+  }
+}
+
+
+// Idle shortcuts share route-choice fetching, with a ten-minute attempt budget per chip.
+const quickEstimates = new Map();
+let quickRequest = null, quickSignature = "";
+function quickIdle() {
+  return !document.hidden && !state.nav && !state.destination && !state.routes.length && !state.picking && !state.savingSlot &&
+    $("clear").hidden && !$("results").children.length;
+}
+function quickStatus(r, paused, malay) {
+  if (!r.liveTraffic || paused) return "";
+  const slow = r.delay > .2 * Math.max(0, r.seconds - r.delay);
+  return malay ? (slow ? "perlahan" : "lancar") : (slow ? "slow" : "clear");
+}
+function refreshQuickPlaces() {
+  const box = $("quickPlaces");
+  if (!box) return;
+  const far = state.here && distance(state.here, map.getCenter().toArray()) > 30000;
+  box.hidden = !quickIdle() || !!far;
+  if (box.hidden) { quickRequest?.abort(); return; }
+  const malay = isMalay();
+  const signature = JSON.stringify([state.home, state.work, [...quickEstimates], trafficPaused, malay]);
+  if (signature !== quickSignature) {
+    quickSignature = signature;
+    box.replaceChildren(...["home", "work"].filter(slot => state[slot]).map(slot => {
+      const place = state[slot], cached = quickEstimates.get(slot);
+      const r = cached && JSON.stringify(cached.to) === JSON.stringify(place.at) && state.here && distance(state.here, cached.from) <= 30000 ? cached.route : null;
+      const label = slot === "home" ? (malay ? "Rumah" : "Home") : (malay ? "Tempat kerja" : "Work");
+      const detail = r ? [formatDuration(r.seconds), quickStatus(r, trafficPaused, malay)].filter(Boolean).join(" · ") : "";
+      const button = Object.assign(document.createElement("button"), { className: `quickPlace kind-${slot}` });
+      button.innerHTML = `<span class="pin">${icon(slot)}</span><span><b></b><small></small></span>`;
+      button.querySelector("b").textContent = label;
+      button.querySelector("small").textContent = detail;
+      button.ariaLabel = [label, detail].filter(Boolean).join(", ");
+      button.onclick = () => goTo(place);
+      return button;
+    }));
+  }
+  if (!state.here || quickRequest) return;
+  const slots = ["home", "work"].filter(slot => state[slot] && Date.now() - (quickEstimates.get(slot)?.at ?? -Infinity) >= 600000);
+  if (!slots.length) return;
+  const controller = quickRequest = new AbortController();
+  (async () => {
+    try {
+      for (const slot of slots) {
+        if (!quickIdle() || controller.signal.aborted) break;
+        const from = state.here.slice(), to = state[slot].at.slice();
+        const cached = { from, to, at: Date.now(), route: null };
+        quickEstimates.set(slot, cached);
+        const found = await fetchRoutes([from, to], false, null, controller).catch(() => []);
+        if (!controller.signal.aborted) cached.route = found[0] ?? null;
+      }
+    } finally { quickRequest = null; refreshQuickPlaces(); }
+  })();
+}
+setInterval(refreshQuickPlaces, 30000);
+document.addEventListener("visibilitychange", refreshQuickPlaces);
+map.on("moveend", refreshQuickPlaces);
+refreshQuickPlaces();
+
+
+const slowFractionCache = new WeakMap();
+function slowFractions(r, slow = r.slow || []) {
+  const cached = slowFractionCache.get(r);
+  if (cached?.slow === slow) return cached.fractions;
+  const cum = cumulative(r.points), total = cum.at(-1) || 1;
+  const fraction = p => { const s = snap(p, r.points); return s ? Math.max(0, Math.min(1, (positionAlong(r.points, cum, s)) / total)) : 0; };
+  const fractions = slow.filter(s => s.points?.length >= 2).map(s => ({ from: fraction(s.points[0]), to: fraction(s.points.at(-1)), severe: s.color === "#D93025" || s.color === "#5F1A1A" })).filter(s => s.to > s.from);
+  slowFractionCache.set(r, { slow, fractions });
+  return fractions;
+}
+function trafficStrip(r) {
+  const strip = Object.assign(document.createElement("div"), { className: "trafficStrip" });
+  strip.ariaHidden = "true";
+  for (const s of slowFractions(r)) {
+    const span = document.createElement("span");
+    span.style.cssText = `left:${s.from * 100}%;width:${(s.to - s.from) * 100}%;background:${s.severe ? "var(--mana-danger)" : "#FFB547"}`;
+    strip.append(span);
+  }
+  return strip;
+}
+function showTripProgress(nav, left) {
+  const box = $("tripProgress"), done = Math.max(0, Math.min(1, 1 - left / (nav.route.meters || 1)));
+  box.ariaLabel = isMalay() ? "Perjalanan selesai" : "Trip complete";
+  box.setAttribute("aria-valuenow", Math.round(done * 100));
+  box.querySelector("i").style.transform = `scaleX(${done})`;
+  box.querySelectorAll(".slowAhead").forEach(n => n.remove());
+  for (const s of slowFractions(nav.route, nav.trafficSlow || nav.route.slow)) {
+    if (s.to <= done) continue;
+    const span = Object.assign(document.createElement("span"), { className: "slowAhead" });
+    span.style.cssText = `left:${Math.max(done, s.from) * 100}%;width:${(s.to - Math.max(done, s.from)) * 100}%`;
+    box.append(span);
+  }
+}
+
+let pointsPillTimer;
+async function showEarnedPoints(before) {
+  if (before == null || !SUPABASE_URL) return;
+  try {
+    const now = await fetchLevel(), gain = now.points - before;
+    showLevelBadge(now);
+    if (gain <= 0) return;
+    const pill = $("pointsPill");
+    pill.textContent = isMalay() ? `+${gain} mata · terima kasih!` : `+${gain} points · thanks!`;
+    pill.hidden = false;
+    clearTimeout(pointsPillTimer);
+    pointsPillTimer = setTimeout(() => { pill.hidden = true; }, 3000);
+  } catch { /* Offline or no awarded points: no celebration. */ }
+}
+
+let puckPulseFrame = 0;
+function startPuckPulse() {
+  cancelAnimationFrame(puckPulseFrame);
+  if (!map.getLayer("mana-pulse")) return;
+  if (reducedMotion() || document.hidden) { map.setPaintProperty("mana-pulse", "circle-opacity", 0); return; }
+  const tick = now => {
+    if (document.hidden || reducedMotion() || !map.getLayer("mana-pulse")) return;
+    const t = (now % 2400) / 2400;
+    map.setPaintProperty("mana-pulse", "circle-radius", 14 + 20 * t);
+    map.setPaintProperty("mana-pulse", "circle-opacity", .18 * (1 - t));
+    puckPulseFrame = requestAnimationFrame(tick);
+  };
+  puckPulseFrame = requestAnimationFrame(tick);
+}
+matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", startPuckPulse);
+document.addEventListener("visibilitychange", startPuckPulse);
+
+
+// Same Valhalla trace used by Android RoadInfo.facts; choices are traced serially, never idle chips.
+let choiceFactsController;
+async function loadChoiceFacts(choices) {
+  choiceFactsController?.abort();
+  const controller = choiceFactsController = new AbortController();
+  for (const route of choices) {
+    if (state.nav || state.routes !== choices || controller.signal.aborted) return;
+    try {
+      let lights = 0, hasTolls = false;
+      for (const piece of tracePieces(route.points)) {
+        if (state.nav || state.routes !== choices) { controller.abort(); return; }
+        const response = await fetch("https://valhalla1.openstreetmap.de/trace_attributes", {
+          method: "POST", signal: controller.signal, headers: { "content-type": "application/json" },
+          body: JSON.stringify({ encoded_polyline: encodeTrace(piece), costing: "auto", shape_match: "map_snap", filters: { action: "include", attributes: ["edge.toll", "edge.road_class", "edge.names", "edge.end_shape_index", "node.admin_index", "node.type", "node.traffic_signal", "edge.traffic_signal", "admin.country_code"] } })
+        });
+        if (!response.ok) throw new Error("Route facts unavailable");
+        const facts = traceFacts(await response.json()); lights += facts.lights; hasTolls ||= facts.hasTolls;
+      }
+      if (!controller.signal.aborted && !state.nav && state.routes === choices) {
+        Object.assign(route, { lights, hasTolls }); selectRoute(state.selected);
+      }
+    } catch { /* Unknown stays unknown; route selection still works offline. */ }
   }
 }

@@ -1,18 +1,23 @@
+@font-face { font-family: "Plus Jakarta Sans"; src: url("fonts/pjs-regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Plus Jakarta Sans"; src: url("fonts/pjs-semibold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Plus Jakarta Sans"; src: url("fonts/pjs-bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Plus Jakarta Sans"; src: url("fonts/pjs-extrabold.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; }
 :root {
-  --mana-primary: #2F6FED;
-  --mana-text: #1B1B1F;
-  --mana-text-secondary: #5F6368;
+  --mana-primary: #2457E6;
+  --mana-text: #0B1733;
+  --mana-text-secondary: #4A5670;
   --mana-surface: #FFFFFF;
   --mana-divider: #ECEDF0;
   --mana-positive: #137333;
   --mana-danger: #CE1126;
   --mana-danger-text: #CE1126; /* red words (Exit); lighter at night to read on the dark pill */
-  --mana-accent: #2F6FED;  /* filled buttons; --mana-primary is for blue text and icons */
-  --mana-surface-variant: #F1F3F4;
-  --mana-primary-container: #E8F0FE;
+  --mana-accent: #2457E6;  /* filled buttons; --mana-primary is for blue text and icons */
+  --mana-surface-variant: #EEF2F9;
+  --mana-primary-container: #E3EBFF;
   --mana-selected: #F2F6FF;
   --mana-field-line: #DADCE0;
   --mana-page: #F4F1EC;
+  --mana-text-muted: #65718A;
   /* Driving screen, on the Mana palette: navy turn banner, red Report, a calm Exit with a red label. */
   --mana-turn-banner: #002B7F;
   --mana-turn-banner-pill: #001A57;
@@ -26,41 +31,44 @@
   --mana-route-driven: #9AA0A6;
   --mana-via: #002B7F;
   --mana-destination: #CE1126;
-  --mana-cluster: #5F6368;
+  --mana-cluster: #4A5670;
 }
 /* Night colours, switched on with the map's between sunset and sunrise (as in the Android app). */
 :root.night {
-  --mana-primary: #8AB4F8;
-  --mana-text: #E8EAED;
-  --mana-text-secondary: #AEB4BC;
-  --mana-surface: #2A2F36;
-  --mana-divider: #3A4048;
-  --mana-positive: #81C995;
-  --mana-surface-variant: #3A4048;
-  --mana-primary-container: #24375A;
-  --mana-selected: #24375A;
+  --mana-primary: #4C7DFF;
+  --mana-text: #EEF2FA;
+  --mana-text-secondary: #A7B3CC;
+  --mana-surface: #18213A;
+  --mana-divider: #2B3758;
+  --mana-positive: #5FD39A;
+  --mana-surface-variant: #222D4A;
+  --mana-primary-container: #26386A;
+  --mana-selected: #26386A;
   --mana-field-line: #4A5058;
-  --mana-page: #1E2227;
-  --mana-danger-text: #FF9AA2;
+  --mana-page: #0F1626;
+  --mana-route-alt: #8E96A0;
+  --mana-destination: #F04A5A;
+  --mana-text-muted: #8794AE;
+  --mana-danger-text: #F04A5A;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--mana-page); }
-body { font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--mana-text); }
+body { font: 16px/1.35 "Plus Jakarta Sans", sans-serif; color: var(--mana-text); }
+input, textarea { font: inherit; }
 button { font: inherit; cursor: pointer; }
 .ico { width: 24px; height: 24px; fill: currentColor; vertical-align: middle; flex: none; }
 .fab { display: grid; place-items: center; }
 #reportButton { color: #fff; background: var(--mana-report); }
 .row .pin { color: var(--mana-primary); }
-#searchBox .lead { color: var(--mana-text-secondary); display: flex; align-items: center; justify-content: center; }
+#searchBox .lead { opacity: 1; color: var(--mana-text-secondary); display: flex; align-items: center; justify-content: center; }
 .icon { display: grid; place-items: center; }
 #map { position: fixed; inset: 0; }
 
-.card { background: var(--mana-surface); border-radius: 22px; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+.card { background: var(--mana-surface); border-radius: 22px; box-shadow: none; }
 #top { position: fixed; top: calc(env(safe-area-inset-top) + 10px); left: 12px; right: 12px; z-index: 2; }
 
 #searchBox { position: relative; display: flex; flex-wrap: wrap; align-items: center; padding: 4px 6px 4px 14px; }
-#searchBox .lead { opacity: .7; }
 #submitSearch, #menuButton { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; }
 #search { flex: 1; min-width: 0; border: 0; outline: 0; font-size: 17px; padding: 12px 10px; background: transparent; color: var(--mana-text); }
 #search::-webkit-search-cancel-button { display: none; }
@@ -70,7 +78,7 @@ button { font: inherit; cursor: pointer; }
 #progress::after { content: ""; position: absolute; width: 35%; height: 100%; background: var(--mana-accent); animation: slide 1.1s ease-in-out infinite; }
 @keyframes slide { from { left: -35%; } to { left: 100%; } }
 /* The input has no outline of its own, so the whole box shows where keyboard focus is. */
-#searchBox:focus-within { box-shadow: 0 0 0 3px var(--mana-primary), 0 2px 10px rgba(0, 0, 0, .18); }
+#searchBox:focus-within { box-shadow: 0 0 0 3px var(--mana-primary); }
 button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid var(--mana-primary); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   #progress::after { animation: none; left: 0; width: 100%; opacity: .6; }
@@ -82,7 +90,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .row .pin { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--mana-primary-container); display: grid; place-items: center; }
 .row .pin.candidate-number { background: var(--mana-accent); color: #fff; font-weight: 700; font-size: 16px; box-shadow: 0 0 0 2px var(--mana-surface), 0 0 0 4px var(--mana-accent); }
 .row .what { flex: 1; min-width: 0; }
-.row .name { font-weight: 600; }
+.row .name { font-weight: 600; overflow-wrap: normal; word-break: normal; hyphens: none; }
 .row .detail, .row .far { color: var(--mana-text-secondary); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Distances in ink; colour is kept for what needs attention. */
 .row .far { color: var(--mana-text); font-weight: 700; }
@@ -94,7 +102,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .savedEdit { flex: none; width: 48px; height: 48px; padding: 15px; border: 0; border-radius: 12px; background: none; color: var(--mana-text-secondary); opacity: .5; }
 .savedEdit:hover, .savedEdit:focus-visible { opacity: .9; }
 /* The Menu: groups, each row's value (On, RM120 of RM300) on the right. */
-.menuGroup { grid-column: 1 / -1; text-align: left; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mana-text-secondary); padding: 10px 6px 2px; }
+.menuGroup { grid-column: 1 / -1; text-align: left; font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--mana-text-secondary); padding: 10px 6px 2px; }
 .menuRow { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 8px 6px; border: 0; border-radius: 12px; background: none; color: var(--mana-text); text-align: left; font-size: 16px; }
 .menuRow .ico { color: var(--mana-text-secondary); }
 .menuRow .label { flex: 1; }
@@ -110,54 +118,54 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 
 /* --stack: the height of the card along the bottom (app.js), so the buttons ride just above it. */
 #side { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom) + max(210px, var(--stack, 0px) + 24px)); display: flex; flex-direction: column; gap: 12px; z-index: 1; }
-.fab { width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--mana-surface); box-shadow: 0 2px 8px rgba(0, 0, 0, .25); font-size: 24px; color: var(--mana-primary); }
+.fab { width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--mana-surface); box-shadow: none; font-size: 24px; color: var(--mana-primary); }
 #trafficButton.off { opacity: .45; }
-/* Bigger and a rounded square: used while moving, and set apart from the round map buttons. */
-#reportButton { width: 64px; height: 64px; border-radius: 22px; align-self: center; }
+/* Bigger and nearest the thumb. */
+#reportButton { width: 64px; height: 64px; border-radius: 50%; align-self: center; }
 /* The speed sign, alone on the map's left edge while driving. */
-#speedView { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom) + var(--stack, 118px) + 24px); z-index: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+#speedView { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom) + var(--stack, 118px) + 24px); z-index: 1; box-shadow: none; }
 
 /* Bottom cards rise and fade in on a decelerating curve, and leave quicker and smaller. */
-.bottomCard { opacity: 0; transform: translateY(16px); transition: opacity 160ms cubic-bezier(.3, 0, 1, 1), transform 160ms cubic-bezier(.3, 0, 1, 1); }
-.bottomCard.in { opacity: 1; transform: none; transition-duration: 240ms; transition-timing-function: cubic-bezier(.2, 0, 0, 1); }
+.bottomCard { opacity: 0; transform: translateY(24px); transition: opacity 160ms cubic-bezier(.3, 0, 1, 1), transform 160ms cubic-bezier(.3, 0, 1, 1); }
+.bottomCard.in { opacity: 1; transform: none; transition-duration: 220ms; transition-timing-function: cubic-bezier(.2, 0, 0, 1); }
 @media (prefers-reduced-motion: reduce) { .bottomCard { transition: none; } }
 #placeCard { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 16px 20px; z-index: 2; }
 #placeName { font-size: 20px; font-weight: 700; }
 #placeDetail { color: var(--mana-text-secondary); font-size: 15px; margin-top: 4px; }
 .placeActions { display: flex; gap: 8px; margin-top: 14px; }
+.placeActions button { height: 52px; font-size: 14px; font-weight: 700; }
 .placeExtras:has(:not([hidden])) { margin-top: 6px; }
 .plain .ico { width: 20px; height: 20px; }
 /* Narrow cards: Save and Close keep only their icons, so Directions never shrinks. */
 @media (max-width: 379px) { .placeActions .pill span { display: none; } }
-/* The route card's actions: icon above its word. */
-#routeActions { flex-basis: 100%; display: flex; gap: 8px; }
-.action { flex: 1; min-height: 64px; border: 0; border-radius: 32px; background: var(--mana-surface-variant); color: var(--mana-text); font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+/* Compact trip chips, with words beside their icons. */
+#routeActions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.action { flex: 1; min-width: 48px; min-height: 48px; padding: 0 8px; border: 0; border-radius: 32px; background: var(--mana-surface-variant); color: var(--mana-text); font-size: 12px; font-weight: 700; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px; }
 .icon.big { width: 56px; height: 52px; border-radius: 26px; }
-#panel { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 14px 16px; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#panel { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 8px 16px; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #trip { flex-basis: 100%; display: flex; flex-direction: column; }
 .tripRow { display: flex; align-items: center; gap: 10px; min-height: 48px; }
 .tripRow .n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--mana-primary-container); color: var(--mana-primary); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
 .tripRow .what { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 0; background: none; color: var(--mana-text); text-align: left; font-size: 15px; padding: 12px 0; }
 .tripRow .btn { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--mana-text-secondary); display: grid; place-items: center; }
 .tripLink { border: 0; background: none; color: var(--mana-primary); font-weight: 600; text-align: left; padding: 12px 0 12px 36px; min-height: 48px; }
-#routes { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; }
-.route { display: flex; justify-content: space-between; gap: 8px; border: 2px solid var(--mana-divider); border-radius: 14px; padding: 8px 12px; background: none; text-align: left; color: var(--mana-text); }
+#routes { flex-basis: 100%; display: grid; grid-auto-rows: 1fr; grid-template-columns: 1fr; gap: 10px; }
+.route { position: relative; display: block; min-width: 0; min-height: 48px; align-items: center; justify-content: space-between; gap: 8px; border: 2px solid var(--mana-divider); border-radius: 20px; padding: 12px; background: var(--mana-surface-variant); text-align: left; color: var(--mana-text); }
 .route.on { border-color: var(--mana-primary); background: var(--mana-selected); }
-.route .time { font-size: 20px; font-weight: 700; color: var(--mana-text); }
-.route .sub { color: var(--mana-text-secondary); font-size: 14px; }
-.route > .sub { white-space: nowrap; }
-#navInfo { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.navStats { flex: 1; min-width: 0; }
-#speedView { width: 72px; height: 72px; display: grid; place-items: center; border: 2px solid var(--mana-field-line); border-radius: 50%; background: #fff; color: #1B1B1F; }
+.route .time { font-size: 20px; font-weight: 800; letter-spacing: -.02em; padding-right: 24px; color: var(--mana-text); }
+.route .sub { color: var(--mana-text-secondary); font-size: 12px; white-space: normal; }
+#navInfo { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; align-items: center; gap: 8px; }
+.navStats { flex: 1; min-width: 0; grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+#speedView { width: 72px; height: 72px; display: grid; place-items: center; border: 2px solid var(--mana-field-line); border-radius: 50%; background: #fff; color: #0B1733; }
 #speedReading { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 #speedReading strong { font-size: 25px; font-variant-numeric: tabular-nums; }
-#speedReading small { margin-top: 3px; font-size: 11px; color: #5F6368; }
+#speedReading small { margin-top: 3px; font-size: 11px; color: #4A5670; }
 /* Above the speed, overlapping only its edge (as the app's SpeedView), so the number stays clear. */
-#speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; padding: 0; cursor: pointer; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #1B1B1F; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#speedLimit { position: absolute; z-index: 1; top: -32px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; padding: 0; cursor: pointer; display: grid; place-items: center; border: 5px solid #CE1126; border-radius: 50%; background: #fff; color: #0B1733; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 /* Going over: the bubble flashes red six times, 300 ms each (as the app's SpeedView), then stays red. */
 #speedView.speeding { border-color: var(--mana-danger); background: var(--mana-danger); color: #fff; animation: speedFlash 600ms step-end 3; }
 #speedView.speeding #speedReading small { color: inherit; opacity: .85; }
-@keyframes speedFlash { 50% { border-color: var(--mana-field-line); background: #fff; color: #1B1B1F; } }
+@keyframes speedFlash { 50% { border-color: var(--mana-field-line); background: #fff; color: #0B1733; } }
 @media (prefers-reduced-motion: reduce) { #speedView.speeding { animation: none; } }
 #navEta { font-size: 28px; font-weight: 700; color: var(--mana-text); }
 #navLeft { color: var(--mana-text-secondary); }
@@ -192,7 +200,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .levelRoad .roadCar { position: absolute; width: 30px; height: 30px; bottom: 1px; transform: rotate(90deg);
   left: clamp(0px, calc(var(--p) * (100% - var(--sign) * .55) - 15px), calc(100% - var(--sign) * .55 - 30px)); }
 .levelRoad .levelSign { position: absolute; right: 0; bottom: 6px; width: var(--sign); height: var(--sign); }
-:root.night .levelRoad .road { background: #3A4048; }
+:root.night .levelRoad .road { background: #222D4A; }
 .qr { grid-column: 1 / -1; width: min(260px, 70vw); justify-self: center; }
 #tiles textarea { grid-column: 1 / -1; font: inherit; padding: 10px; border: 1px solid var(--mana-field-line); border-radius: 12px; resize: vertical; background: var(--mana-surface); color: var(--mana-text); }
 #tiles .primary { grid-column: 1 / -1; }
@@ -215,8 +223,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 .tile svg { width: 34px; height: 34px; fill: color-mix(in srgb, var(--tile) 75%, black); }
 /* Icons a little darker by day and lighter at night, so each stands out from its tint (3:1 or more). */
 :root.night .tile svg { fill: color-mix(in srgb, var(--tile) 55%, white); }
-/* Add stop and Exit are used while moving: 64px. */
-#navInfo .pill { min-height: 64px; }
+#navInfo .pill { min-height: 48px; justify-content: center; }
 
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 230px); max-width: calc(100% - 32px); background: #323232; color: #fff; padding: 10px 16px; border-radius: 18px; z-index: 4; font-size: 15px; text-align: center; }
 #install { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 6px 16px 4px; z-index: 5; font-size: 15px; }
@@ -242,8 +249,94 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 #routeOffer button:first-of-type { background: var(--mana-accent); color: #FFFFFF; padding: 0 16px; border-radius: 24px; }
 body.route-offer #speedView { bottom: calc(env(safe-area-inset-bottom) + var(--stack, 118px) + 100px); }
 body.route-offer #side { bottom: calc(env(safe-area-inset-bottom) + max(210px, var(--stack, 0px) + 100px)); }
-.drive-route-pill { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--mana-divider); background: var(--mana-surface); color: var(--mana-text-secondary); font-size: 14px; font-weight: 600; box-shadow: 0 2px 6px #0002; }
+.drive-route-pill { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--mana-divider); background: var(--mana-surface); color: var(--mana-text-secondary); font-size: 14px; font-weight: 600; box-shadow: none; }
 .drive-route-pill.faster { color: var(--mana-positive); }
-:root.night { --mana-route-alt: #8E96A0; }
 
 .drive-route-pill:active { background: var(--mana-surface-variant); }
+
+.mapControls { width: 56px; display: flex; flex-direction: column; border-radius: 28px; overflow: hidden; background: var(--mana-surface); box-shadow: none; }
+.mapControls .fab { flex: none; border-radius: 0; box-shadow: none; background: transparent; }
+#tiltButton { font-size: 16px; font-weight: 700; }
+.mapControls:has(#trafficButton:not([hidden])) #tiltButton { background: var(--mana-surface-variant); }
+
+.route .routeCheck { flex: none; width: 24px; color: var(--mana-primary); visibility: hidden; font-weight: 700; }
+.route.on .routeCheck { visibility: visible; }
+@media (max-width: 379px) { #routeActions .action span { display: none; } }
+
+.route > span:first-child { flex: 1; min-width: 0; }
+
+/* Approved Mana surfaces are flat; focus outlines remain visible. */
+.card, .fab, .drive-route-pill { box-shadow: none; }
+#submitSearch, #menuButton, #levelButton { min-width: 48px; min-height: 48px; }
+#submitSearch.manaMark { background: #002B7F url("mana-symbol-night.svg") center / 28px no-repeat; }
+#submitSearch.manaMark > svg { visibility: hidden; }
+h1, h2, h3, #placeName, #bannerDistance, #navEta { font-weight: 800; letter-spacing: -.02em; }
+.levelRing { width: 40px; height: 40px; transform: rotate(-90deg); }
+.levelRing text { transform: rotate(90deg); transform-origin: 20px 20px; fill: var(--mana-text); font-size: 15px; font-weight: 800; }
+
+.searchGreeting { font-size: 26px; font-weight: 800; letter-spacing: -.02em; padding: 12px 10px 0; }
+.greetingSub { font-size: 14px; color: var(--mana-text-secondary); padding: 4px 10px 16px; }
+.kind-fuel .pin { color: #B4510E; background: #FFF0E5; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-fuel .pin { color: #FF9F5A; background: #3A2418; }
+.kind-food .pin { color: #B52E48; background: #FFE9ED; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-food .pin { color: #FF7A8A; background: #3A1C24; }
+.kind-toilet .pin { color: #196594; background: #E2F3FF; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-toilet .pin { color: #6FC3FF; background: #16314A; }
+.kind-rest-area .pin { color: #176B43; background: #E4F6ED; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-rest-area .pin { color: #5FD39A; background: #1B3226; }
+.kind-store .pin { color: #6A429F; background: #F1EAFE; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-store .pin { color: #C3A6FF; background: #2E2440; }
+.kind-mosque .pin { color: #126B59; background: #E1F5F0; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-mosque .pin { color: #4FD1B5; background: #163A33; }
+.kind-home .pin { color: #2457B7; background: #E3EBFF; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-home .pin { color: #9DBBFF; background: #1D3B7A; }
+.kind-work .pin { color: #82520A; background: #FFF1D9; border-radius: 50%; width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+:root.night .kind-work .pin { color: #FFB547; background: #3B2A1A; }
+
+.nearbyKinds { gap: 10px; padding: 4px 6px; }
+.nearbyKinds .row { flex-direction: column; flex: 1; gap: 8px; min-height: 104px; padding: 12px 4px; background: var(--mana-surface-variant); border-radius: 20px; text-align: center; }
+.nearbyKinds .what { width: 100%; flex: none; }
+.nearbyKinds .name { font-size: 13px; white-space: normal; }
+.nearbyKinds .detail:empty { display: none; }
+
+#quickPlaces { position: fixed; z-index: 1; left: 14px; right: 94px; bottom: calc(env(safe-area-inset-bottom) + 24px); display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+#quickPlaces[hidden] { display: none; }
+.quickPlace { display: flex; align-items: center; gap: 10px; border: 0; padding: 8px 14px 8px 8px; min-height: 56px; border-radius: 28px; color: var(--mana-text); background: var(--mana-surface); text-align: left; }
+.quickPlace b { display: block; font-size: 15px; }
+.quickPlace small { display: block; color: var(--mana-text-secondary); font-size: 13px; }
+
+#routeHero { margin-bottom: 14px; }
+#routeTime { font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+#routeArrival { display: inline-block; margin-left: 8px; font-size: 18px; color: var(--mana-text-secondary); }
+#routeMeta { color: var(--mana-text-secondary); font-size: 14px; margin-top: 4px; }
+#routes.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.route > .routeCheck { position: absolute; top: 12px; right: 8px; }
+.route > span:first-child .sub { font-size: 13px; font-weight: 700; margin: 3px 0; }
+.trafficStrip { position: relative; height: 6px; background: var(--mana-positive); overflow: hidden; border-radius: 3px; margin-top: 10px; }
+.trafficStrip span, .slowAhead { position: absolute; top: 0; bottom: 0; }
+#go { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 64px; font-weight: 800; font-size: 22px; border-radius: 32px; margin-top: 12px; }
+#go[hidden] { display: none; }
+#tripProgress { position: relative; height: 8px; border-radius: 4px; background: var(--mana-divider); margin: 14px 8px 8px 0; }
+#tripProgress i { position: absolute; inset: 0; border-radius: 4px; background: var(--mana-primary); transform-origin: left; }
+#tripProgress em { position: absolute; right: -8px; top: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--mana-destination); z-index: 1; }
+.slowAhead { background: #FFB547; }
+#pointsPill { position: fixed; top: calc(env(safe-area-inset-top) + 180px); right: 14px; z-index: 4; padding: 8px 14px; border-radius: 24px; background: #E4F6ED; color: #176B43; font-size: 14px; font-weight: 800; }
+:root.night #pointsPill { background: #103A2A; color: #5FD39A; }
+button { transition: transform 100ms cubic-bezier(.2,0,0,1); }
+button:active { transform: scale(.96); }
+#speedView { box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  button:active { transform: none; }
+}
+
+#search::placeholder { color: var(--mana-text-secondary); opacity: 1; }
+#routeHero { flex-basis: 100%; }
+#routeHero[hidden], #routes[hidden], #navInfo[hidden] { display: none; }
+.tripRow .btn, .drive-route-pill { min-width: 48px; min-height: 48px; }
+
+#go { background: var(--mana-primary); }
+
+#tripProgress { grid-column: 1 / -1; width: calc(100% - 8px); }
+
+#submitSearch.manaMark { border: 4px solid var(--mana-surface); }
